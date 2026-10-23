@@ -1,10 +1,23 @@
 "use client";
 
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import { FaInstagram } from "react-icons/fa";
 import { BsChat } from "react-icons/bs";
 
-export function Footer() {
+// Helpers for useSyncExternalStore
+const emptySubscribe = () => () => {};
+const getYearSnapshot = () => new Date().getFullYear();
+const getServerYearSnapshot = () => "2026";
+
+const Footer = () => {
+  // Evaluates dynamically on client side without triggering React 19 linter errors
+  const currentYear = useSyncExternalStore(
+    emptySubscribe,
+    getYearSnapshot,
+    getServerYearSnapshot,
+  );
+
   return (
     <footer className="w-full bg-[#FAF9F6] text-[#2D2B2A] border-t border-border mt-auto font-sans">
       <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
@@ -149,8 +162,7 @@ export function Footer() {
       <div className="w-full border-t border-[#EAE8E4]/60 bg-[#FAF9F6]">
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-widest text-[#76726E] uppercase">
           <div>
-            © {new Date().getFullYear()} DAWANGHUB OFFICIAL STORE. ALL RIGHTS
-            RESERVED.
+            © {currentYear} DAWANGHUB OFFICIAL STORE. ALL RIGHTS RESERVED.
           </div>
           <div className="flex gap-6 items-center">
             <Link
@@ -173,4 +185,6 @@ export function Footer() {
       </div>
     </footer>
   );
-}
+};
+
+export default Footer;

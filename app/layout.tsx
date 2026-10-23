@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 import SiteHeader from "@/components/layouts/SiteHeader";
-import { Footer } from "@/components/layouts/Footer";
+import Footer from "@/components/layouts/Footer";
 
 // Primary Body Font
 const inter = Inter({
