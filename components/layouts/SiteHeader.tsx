@@ -55,7 +55,7 @@ const SiteHeader = () => {
 
           <Link href="/" className="flex items-center gap-1">
             {/* Logo Image from Public Directory */}
-            <div className="relative w-10 h-32 overflow-hidden">
+            <div className="relative w-20 h-20 overflow-hidden">
               <Image
                 src="/logo-nobg.png"
                 alt="Dawang Stores Logo"
