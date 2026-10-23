@@ -5,13 +5,12 @@ import Link from "next/link";
 import { FaInstagram } from "react-icons/fa";
 import { BsChat } from "react-icons/bs";
 
-// Helpers for useSyncExternalStore
+// Helpers for useSyncExternalStore (both snapshot functions return type 'number')
 const emptySubscribe = () => () => {};
 const getYearSnapshot = () => new Date().getFullYear();
-const getServerYearSnapshot = () => "2026";
+const getServerYearSnapshot = () => 2026;
 
 const Footer = () => {
-  // Evaluates dynamically on client side without triggering React 19 linter errors
   const currentYear = useSyncExternalStore(
     emptySubscribe,
     getYearSnapshot,
