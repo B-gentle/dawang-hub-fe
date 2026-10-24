@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Inter, Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
-import SiteHeader from "@/components/layouts/SiteHeader";
-import Footer from "@/components/layouts/Footer";
+import { Toaster } from "sonner";
 
 // Primary Body Font
 const inter = Inter({
@@ -30,15 +29,22 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       lang="en"
       className={`${inter.variable} ${plusJakarta.variable} h-full antialiased`}
     >
-      <body className="min-h-screen flex flex-col antialiased bg-background text-foreground font-sans">
-        {/* Global Navigation Site Header */}
-        <SiteHeader />
-
-        {/* Content Region grows to push footer downward */}
-        <div className="flex-1">{children}</div>
-
-        {/* Global Navigation Site Footer */}
-        <Footer />
+      <body className="min-h-screen bg-background text-foreground font-sans antialiased">
+        {children}
+        <Toaster
+          position="top-right"
+          richColors
+          closeButton
+          toastOptions={{
+            style: {
+              background: "#171514",
+              color: "#FFFFFF",
+              borderColor: "#2A2725",
+              fontSize: "12px",
+              fontFamily: "var(--font-sans)",
+            },
+          }}
+        />
       </body>
     </html>
   );
