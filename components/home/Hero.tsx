@@ -14,10 +14,10 @@ interface HeroProps {
 }
 
 export default function Hero({
-  videoId = "dQw4w9WgXcQ",
+  videoId = "t1Nbqpse8kc",
   subtitle = "Autumn / Winter Collection 2026",
-  title = "Elegance Defined By Distinction",
-  description = "Discover curated luxury apparel, handcrafted footwear, and premium lifestyle accessories built for the modern individual.",
+  title = "Fashion. Beauty. Lifestyle.",
+  description = "Style that speaks, Quality that lasts",
   primaryCtaText = "Explore Catalog",
   primaryCtaHref = "/shop",
   secondaryCtaText = "View Clothing",

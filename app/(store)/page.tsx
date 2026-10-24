@@ -67,7 +67,7 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
-      <Hero videoId="dQw4w9WgXcQ" />
+      <Hero videoId="t1Nbqpse8kc" />
 
       {/* 1. New Arrivals Section */}
       <ProductGrid
