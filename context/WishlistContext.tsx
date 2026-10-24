@@ -26,6 +26,7 @@ interface WishlistContextType {
   isInWishlist: (productId: string) => boolean;
   clearWishlist: () => void;
   syncing: boolean;
+  isMounted: boolean;
 }
 
 const WISHLIST_STORAGE_KEY = "dawang_wishlist";
@@ -52,6 +53,14 @@ export const WishlistProvider = ({
   });
 
   const [syncing, setSyncing] = useState<boolean>(false);
+  const [isMounted, setIsMounted] = useState<boolean>(false);
+
+  // Set mounted state asynchronously after initial render tick
+  useEffect(() => {
+    queueMicrotask(() => {
+      setIsMounted(true);
+    });
+  }, []);
 
   // Sync with server if user is authenticated
   const syncWishlistWithServer = useCallback(async (localItems: Product[]) => {
@@ -104,13 +113,13 @@ export const WishlistProvider = ({
     }
   }, []);
 
-  // Async server synchronization on mount without triggering synchronous state updates
+  // Async server synchronization on mount
   useEffect(() => {
-    let isMounted = true;
+    let active = true;
 
     const runSync = async () => {
       const token = Cookies.get(TOKEN_COOKIE_NAME);
-      if (token && isMounted) {
+      if (token && active) {
         await syncWishlistWithServer(wishlist);
       }
     };
@@ -118,7 +127,7 @@ export const WishlistProvider = ({
     runSync();
 
     return () => {
-      isMounted = false;
+      active = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -205,6 +214,7 @@ export const WishlistProvider = ({
         isInWishlist,
         clearWishlist,
         syncing,
+        isMounted,
       }}
     >
       {children}

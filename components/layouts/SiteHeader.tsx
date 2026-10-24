@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -16,6 +16,7 @@ import {
   FiLogIn,
 } from "react-icons/fi";
 import { useWishlist } from "@/context/WishlistContext";
+import { useCart } from "@/context/CartContext";
 
 const NAV_LINKS = [
   { label: "Shop", href: "/shop" },
@@ -32,13 +33,21 @@ const SiteHeader = () => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
 
-  const { wishlist } = useWishlist();
+  const { wishlist, isMounted } = useWishlist();
+  const { totalItems, openCart } = useCart();
 
-  // Lazy state initialization reads cookie safely without synchronous useEffect setState
-  const [isLoggedIn] = useState<boolean>(() => {
-    if (typeof window === "undefined") return false;
-    return Boolean(Cookies.get(TOKEN_COOKIE_NAME));
-  });
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+
+  // Safely set auth status after hydration microtask tick
+  useEffect(() => {
+    queueMicrotask(() => {
+      setIsLoggedIn(Boolean(Cookies.get(TOKEN_COOKIE_NAME)));
+    });
+  }, []);
+
+  // Use hydration-safe flags
+  const userHref = isMounted && isLoggedIn ? "/account" : "/login";
+  const userAriaLabel = isMounted && isLoggedIn ? "My Account" : "Sign In";
 
   const handleMobileSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -110,11 +119,13 @@ const SiteHeader = () => {
               className="relative py-1 transition-colors hover:text-[#C4956A] group flex items-center gap-1.5"
             >
               <span>{link.label}</span>
-              {link.href === "/wishlist" && wishlist.length > 0 && (
-                <span className="bg-[#C4956A] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
-                  {wishlist.length}
-                </span>
-              )}
+              {isMounted &&
+                link.href === "/wishlist" &&
+                wishlist.length > 0 && (
+                  <span className="bg-[#C4956A] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                    {wishlist.length}
+                  </span>
+                )}
               <motion.span className="absolute bottom-0 left-0 w-full h-[1.5px] bg-[#C4956A] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out" />
             </Link>
           ))}
@@ -131,20 +142,25 @@ const SiteHeader = () => {
           </Link>
 
           <Link
-            href={isLoggedIn ? "/account" : "/login"}
+            href={userHref}
             className="p-1.5 hover:text-[#C4956A] transition-colors"
-            aria-label={isLoggedIn ? "My Account" : "Sign In"}
+            aria-label={userAriaLabel}
           >
             <FiUser className="w-5 h-5" />
           </Link>
 
-          <Link
-            href="/cart"
-            className="p-1.5 hover:text-[#C4956A] transition-colors relative"
+          <button
+            onClick={openCart}
+            className="p-1.5 hover:text-[#C4956A] transition-colors relative cursor-pointer"
             aria-label="Shopping Bag"
           >
             <FiShoppingBag className="w-5 h-5" />
-          </Link>
+            {isMounted && totalItems > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[#151413] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white">
+                {totalItems}
+              </span>
+            )}
+          </button>
         </div>
 
         {/* Mobile Right Section */}
@@ -161,13 +177,18 @@ const SiteHeader = () => {
             </div>
           </Link>
 
-          <Link
-            href="/cart"
-            className="p-1 text-[#151413] hover:text-[#C4956A] transition-colors relative"
+          <button
+            onClick={openCart}
+            className="p-1 text-[#151413] hover:text-[#C4956A] transition-colors relative cursor-pointer"
             aria-label="Shopping Bag"
           >
             <FiShoppingBag className="w-5 h-5" />
-          </Link>
+            {isMounted && totalItems > 0 && (
+              <span className="absolute -top-1 -right-1 bg-[#151413] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white">
+                {totalItems}
+              </span>
+            )}
+          </button>
         </div>
       </div>
 
@@ -208,7 +229,7 @@ const SiteHeader = () => {
                   <span className="flex items-center gap-2">
                     <FiHeart className="w-4 h-4 text-[#C4956A]" /> Wishlist
                   </span>
-                  {wishlist.length > 0 && (
+                  {isMounted && wishlist.length > 0 && (
                     <span className="bg-[#C4956A] text-white text-[9px] font-bold rounded-full px-2 py-0.5">
                       {wishlist.length}
                     </span>
@@ -217,12 +238,12 @@ const SiteHeader = () => {
 
                 {/* 3. Account / Login Link */}
                 <Link
-                  href={isLoggedIn ? "/account" : "/login"}
+                  href={userHref}
                   onClick={() => setIsMobileMenuOpen(false)}
                   className="py-2 hover:text-[#C4956A] transition-colors border-b border-[#FAF9F6] flex items-center justify-between"
                 >
                   <span className="flex items-center gap-2">
-                    {isLoggedIn ? (
+                    {isMounted && isLoggedIn ? (
                       <>
                         <FiUser className="w-4 h-4 text-[#C4956A]" /> My Account
                       </>

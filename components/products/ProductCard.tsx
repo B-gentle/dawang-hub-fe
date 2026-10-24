@@ -6,6 +6,7 @@ import { FiHeart, FiShoppingBag, FiImage } from "react-icons/fi";
 import { FaHeart } from "react-icons/fa";
 import { Product } from "@/types/product";
 import { useWishlist } from "@/context/WishlistContext";
+import { useCart } from "@/context/CartContext";
 
 interface ProductCardProps {
   product: Product;
@@ -13,8 +14,9 @@ interface ProductCardProps {
 
 export default function ProductCard({ product }: ProductCardProps) {
   const { isInWishlist, toggleWishlist } = useWishlist();
-  const isSaved = isInWishlist(product.id);
+  const { addToCart } = useCart();
 
+  const isSaved = isInWishlist(product.id);
   const hasDiscount = Boolean(
     product.discountPrice && product.discountPrice < product.price,
   );
@@ -75,8 +77,14 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
 
         {/* Quick Add To Bag Button */}
-        <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
-          <button className="w-full py-2.5 bg-[#151413]/90 backdrop-blur-xs text-white text-[10px] font-bold uppercase tracking-widest hover:bg-[#151413] flex items-center justify-center gap-2 transition-colors cursor-pointer">
+        <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-30">
+          <button
+            onClick={(e) => {
+              e.stopPropagation();
+              addToCart(product, 1);
+            }}
+            className="w-full py-2.5 bg-[#151413]/90 backdrop-blur-xs text-white text-[10px] font-bold uppercase tracking-widest hover:bg-[#151413] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
             <FiShoppingBag className="w-3.5 h-3.5" /> Add to Bag
           </button>
         </div>

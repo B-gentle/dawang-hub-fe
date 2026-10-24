@@ -15,11 +15,11 @@ import {
   FiImage,
 } from "react-icons/fi";
 import { FaHeart } from "react-icons/fa";
-import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { Product } from "@/types/product";
 import ProductGrid from "@/components/products/ProductGrid";
 import { useWishlist } from "@/context/WishlistContext";
+import { useCart } from "@/context/CartContext";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -35,6 +35,7 @@ export default function ProductDetailPage({ params }: PageProps) {
   const [loading, setLoading] = useState<boolean>(true);
 
   const { isInWishlist, toggleWishlist } = useWishlist();
+  const { addToCart } = useCart();
 
   // Accordion state toggles
   const [activeTab, setActiveTab] = useState<string | null>("description");
@@ -116,9 +117,9 @@ export default function ProductDetailPage({ params }: PageProps) {
   const isSaved = isInWishlist(product.id);
 
   const handleAddToCart = () => {
-    toast.success(
-      `Added ${quantity} x "${product.name}" to your shopping bag!`,
-    );
+    if (product) {
+      addToCart(product, quantity);
+    }
   };
 
   const toggleTab = (tab: string) => {
