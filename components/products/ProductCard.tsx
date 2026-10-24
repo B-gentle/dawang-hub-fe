@@ -3,13 +3,18 @@
 import Link from "next/link";
 import Image from "next/image";
 import { FiHeart, FiShoppingBag, FiImage } from "react-icons/fi";
+import { FaHeart } from "react-icons/fa";
 import { Product } from "@/types/product";
+import { useWishlist } from "@/context/WishlistContext";
 
 interface ProductCardProps {
   product: Product;
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const { isInWishlist, toggleWishlist } = useWishlist();
+  const isSaved = isInWishlist(product.id);
+
   const hasDiscount = Boolean(
     product.discountPrice && product.discountPrice < product.price,
   );
@@ -18,7 +23,7 @@ export default function ProductCard({ product }: ProductCardProps) {
 
   return (
     <div className="group relative flex flex-col bg-white overflow-hidden transition-all duration-300 w-full rounded-b-md">
-      {/* Image Stage Container (Clickable) */}
+      {/* Image Stage Container */}
       <div className="relative aspect-4/5 w-full bg-[#FAF9F6] overflow-hidden z-20 shadow-xs group-hover:shadow-md transition-shadow duration-300">
         <Link href={productHref} className="absolute inset-0 z-0">
           {product.images && product.images.length > 0 ? (
@@ -51,13 +56,21 @@ export default function ProductCard({ product }: ProductCardProps) {
           )}
         </div>
 
-        {/* Wishlist Button */}
-        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+        {/* Interactive Wishlist Button */}
+        <div className="absolute top-3 right-3 z-30 opacity-100 sm:opacity-0 group-hover:opacity-100 transition-opacity duration-200">
           <button
+            onClick={(e) => {
+              e.stopPropagation();
+              toggleWishlist(product);
+            }}
             className="w-8 h-8 rounded-full bg-white/90 text-[#151413] flex items-center justify-center shadow-xs hover:bg-[#151413] hover:text-white transition-colors cursor-pointer"
-            aria-label="Add to wishlist"
+            aria-label={isSaved ? "Remove from wishlist" : "Add to wishlist"}
           >
-            <FiHeart className="w-4 h-4" />
+            {isSaved ? (
+              <FaHeart className="w-4 h-4 text-rose-600" />
+            ) : (
+              <FiHeart className="w-4 h-4" />
+            )}
           </button>
         </div>
 
@@ -69,7 +82,7 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
       </div>
 
-      {/* Product Details Section Wrapped in Full Link */}
+      {/* Product Details Link */}
       <Link
         href={productHref}
         className="pt-3.5 pb-3 px-3 flex flex-col gap-1 bg-white border-x border-b border-[#EAE8E4]/60 rounded-b-md shadow-xs group-hover:shadow-md transition-shadow duration-300 z-10 block cursor-pointer"
@@ -83,7 +96,6 @@ export default function ProductCard({ product }: ProductCardProps) {
           {product.name}
         </h3>
 
-        {/* Pricing */}
         <div className="flex items-baseline gap-2 mt-0.5">
           <span className="font-bold text-xs sm:text-sm text-[#151413]">
             ₦{Number(displayPrice || 0).toLocaleString()}

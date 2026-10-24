@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
+import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -14,6 +15,7 @@ import {
   FiX,
   FiLogIn,
 } from "react-icons/fi";
+import { useWishlist } from "@/context/WishlistContext";
 
 const NAV_LINKS = [
   { label: "Shop", href: "/shop" },
@@ -26,8 +28,11 @@ const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
 
 const SiteHeader = () => {
+  const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
+
+  const { wishlist } = useWishlist();
 
   // Lazy state initialization reads cookie safely without synchronous useEffect setState
   const [isLoggedIn] = useState<boolean>(() => {
@@ -38,9 +43,7 @@ const SiteHeader = () => {
   const handleMobileSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (mobileSearchQuery.trim()) {
-      window.location.href = `/shop?q=${encodeURIComponent(
-        mobileSearchQuery.trim(),
-      )}`;
+      router.push(`/shop?q=${encodeURIComponent(mobileSearchQuery.trim())}`);
       setIsMobileMenuOpen(false);
     }
   };
@@ -75,7 +78,7 @@ const SiteHeader = () => {
             )}
           </button>
 
-          {/* Desktop Logo (Shown on sm breakpoint & above) */}
+          {/* Desktop Logo */}
           <Link href="/" className="hidden sm:flex items-center gap-2">
             <div className="relative w-14 h-14 overflow-hidden flex-shrink-0">
               <Image
@@ -98,21 +101,26 @@ const SiteHeader = () => {
           </Link>
         </div>
 
-        {/* Center Section: Navigation Links (Desktop Only - Wishlist replacing Shoes) */}
+        {/* Center Section: Navigation Links (Desktop) */}
         <nav className="hidden md:flex items-center gap-8 text-[11px] font-semibold tracking-[0.18em] uppercase text-[#151413]">
           {NAV_LINKS.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="relative py-1 transition-colors hover:text-[#C4956A] group"
+              className="relative py-1 transition-colors hover:text-[#C4956A] group flex items-center gap-1.5"
             >
-              {link.label}
+              <span>{link.label}</span>
+              {link.href === "/wishlist" && wishlist.length > 0 && (
+                <span className="bg-[#C4956A] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  {wishlist.length}
+                </span>
+              )}
               <motion.span className="absolute bottom-0 left-0 w-full h-[1.5px] bg-[#C4956A] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out" />
             </Link>
           ))}
         </nav>
 
-        {/* Desktop Right Section: Utility Icons (Wishlist Icon Removed) */}
+        {/* Desktop Right Section */}
         <div className="hidden sm:flex items-center gap-4 text-[#151413]">
           <Link
             href="/shop"
@@ -139,7 +147,7 @@ const SiteHeader = () => {
           </Link>
         </div>
 
-        {/* Mobile Right Section: Brand Logo FIRST, then Shopping Bag (2px gap) */}
+        {/* Mobile Right Section */}
         <div className="flex sm:hidden items-center gap-[2px]">
           <Link href="/" className="flex items-center">
             <div className="relative w-14 h-14 overflow-hidden flex-shrink-0">
@@ -191,7 +199,7 @@ const SiteHeader = () => {
                   <span>Shop</span>
                 </Link>
 
-                {/* 2. Wishlist Link */}
+                {/* 2. Wishlist Link with Badge */}
                 <Link
                   href="/wishlist"
                   onClick={() => setIsMobileMenuOpen(false)}
@@ -200,6 +208,11 @@ const SiteHeader = () => {
                   <span className="flex items-center gap-2">
                     <FiHeart className="w-4 h-4 text-[#C4956A]" /> Wishlist
                   </span>
+                  {wishlist.length > 0 && (
+                    <span className="bg-[#C4956A] text-white text-[9px] font-bold rounded-full px-2 py-0.5">
+                      {wishlist.length}
+                    </span>
+                  )}
                 </Link>
 
                 {/* 3. Account / Login Link */}

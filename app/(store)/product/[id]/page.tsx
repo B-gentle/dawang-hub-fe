@@ -14,10 +14,12 @@ import {
   FiPlus,
   FiImage,
 } from "react-icons/fi";
+import { FaHeart } from "react-icons/fa";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { Product } from "@/types/product";
 import ProductGrid from "@/components/products/ProductGrid";
+import { useWishlist } from "@/context/WishlistContext";
 
 interface PageProps {
   params: Promise<{ id: string }>;
@@ -31,6 +33,8 @@ export default function ProductDetailPage({ params }: PageProps) {
   const [selectedImage, setSelectedImage] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
+
+  const { isInWishlist, toggleWishlist } = useWishlist();
 
   // Accordion state toggles
   const [activeTab, setActiveTab] = useState<string | null>("description");
@@ -109,6 +113,7 @@ export default function ProductDetailPage({ params }: PageProps) {
     product.discountPrice && product.discountPrice < product.price,
   );
   const displayPrice = hasDiscount ? product.discountPrice! : product.price;
+  const isSaved = isInWishlist(product.id);
 
   const handleAddToCart = () => {
     toast.success(
@@ -142,7 +147,7 @@ export default function ProductDetailPage({ params }: PageProps) {
       {/* Main Product Showcase Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-          {/* Left Column: Image Gallery (7 Columns) */}
+          {/* Left Column: Image Gallery */}
           <div className="lg:col-span-7 flex flex-col-reverse sm:flex-row gap-4">
             {/* Thumbnails */}
             {product.images && product.images.length > 1 && (
@@ -202,7 +207,7 @@ export default function ProductDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Right Column: Product Info & Buy Controls (5 Columns) */}
+          {/* Right Column: Product Info & Actions */}
           <div className="lg:col-span-5 flex flex-col gap-6">
             <div>
               <span className="text-xs font-bold tracking-widest text-[#C4956A] uppercase block mb-1">
@@ -276,16 +281,23 @@ export default function ProductDetailPage({ params }: PageProps) {
                 <FiShoppingBag className="w-4 h-4" /> Add To Shopping Bag
               </button>
 
+              {/* Connected Wishlist Toggle */}
               <button
-                onClick={() => toast.info("Added to Wishlist!")}
-                className="p-3.5 border border-[#EAE8E4] rounded-md hover:border-[#151413] hover:text-rose-600 transition-colors flex items-center justify-center cursor-pointer"
-                aria-label="Save to wishlist"
+                onClick={() => toggleWishlist(product)}
+                className="p-3.5 border border-[#EAE8E4] rounded-md hover:border-[#151413] transition-colors flex items-center justify-center cursor-pointer"
+                aria-label={
+                  isSaved ? "Remove from wishlist" : "Save to wishlist"
+                }
               >
-                <FiHeart className="w-4 h-4" />
+                {isSaved ? (
+                  <FaHeart className="w-4 h-4 text-rose-600" />
+                ) : (
+                  <FiHeart className="w-4 h-4 text-[#151413]" />
+                )}
               </button>
             </div>
 
-            {/* Value Guarantees (using FiShield) */}
+            {/* Value Guarantees */}
             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-[#EAE8E4] text-xs text-[#76726E]">
               <div className="flex items-center gap-2.5">
                 <FiTruck className="w-4 h-4 text-[#C4956A] shrink-0" />
@@ -334,8 +346,8 @@ export default function ProductDetailPage({ params }: PageProps) {
                 {activeTab === "shipping" && (
                   <div className="text-xs text-[#76726E] mt-3 leading-relaxed flex flex-col gap-2">
                     <p>
-                      Orders in Lagos are processed and delivered within 24-48
-                      hours.
+                      Orders in Port Harcourt are processed and delivered within
+                      24-48 hours.
                     </p>
                     <p>
                       Interstate shipments typically arrive within 2-4 business

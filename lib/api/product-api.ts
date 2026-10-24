@@ -24,6 +24,19 @@ export const productApi = {
       method: "DELETE",
     }),
 
+  // --- Wishlist Endpoints ---
+  getWishlist: () => fetcher<Product[]>("/wishlist"),
+
+  addToWishlist: (productId: string) =>
+    fetcher<{ success: boolean }>(`/wishlist/${productId}`, {
+      method: "POST",
+    }),
+
+  removeFromWishlist: (productId: string) =>
+    fetcher<{ success: boolean }>(`/wishlist/${productId}`, {
+      method: "DELETE",
+    }),
+
   uploadToCloudflare: async (
     productId: string,
     file: File,
