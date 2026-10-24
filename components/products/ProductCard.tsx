@@ -1,0 +1,96 @@
+"use client";
+
+import Link from "next/link";
+import Image from "next/image";
+import { FiHeart, FiShoppingBag, FiImage } from "react-icons/fi";
+import { Product } from "@/types/product";
+
+interface ProductCardProps {
+  product: Product;
+}
+
+export default function ProductCard({ product }: ProductCardProps) {
+  const hasDiscount = Boolean(
+    product.discountPrice && product.discountPrice < product.price,
+  );
+  const displayPrice = hasDiscount ? product.discountPrice! : product.price;
+
+  return (
+    <div className="group relative flex flex-col bg-white overflow-hidden transition-all duration-300 w-full rounded-b-md">
+      {/* Tall Portrait Image Container */}
+      <div className="relative aspect-4/5 w-full bg-[#FAF9F6] overflow-hidden z-20 shadow-xs group-hover:shadow-md transition-shadow duration-300">
+        {product.images && product.images.length > 0 ? (
+          <Image
+            src={product.images[0]}
+            alt={product.name}
+            fill
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+            unoptimized
+            className="object-cover transition-transform duration-700 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full flex items-center justify-center text-[#A39E98]">
+            <FiImage className="w-8 h-8" />
+          </div>
+        )}
+
+        {/* Badges */}
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+          {hasDiscount && (
+            <span className="bg-rose-600 text-white text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-xs">
+              SALE
+            </span>
+          )}
+          {product.isFeatured && (
+            <span className="bg-[#151413] text-white text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-xs">
+              FEATURED
+            </span>
+          )}
+        </div>
+
+        {/* Wishlist Button */}
+        <div className="absolute top-3 right-3 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+          <button
+            className="w-8 h-8 rounded-full bg-white/90 text-[#151413] flex items-center justify-center shadow-xs hover:bg-[#151413] hover:text-white transition-colors cursor-pointer"
+            aria-label="Add to wishlist"
+          >
+            <FiHeart className="w-4 h-4" />
+          </button>
+        </div>
+
+        {/* Quick Add To Bag Button */}
+        <div className="absolute bottom-3 left-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity duration-300 z-10">
+          <button className="w-full py-2.5 bg-[#151413]/90 backdrop-blur-xs text-white text-[10px] font-bold uppercase tracking-widest hover:bg-[#151413] flex items-center justify-center gap-2 transition-colors cursor-pointer">
+            <FiShoppingBag className="w-3.5 h-3.5" /> Add to Bag
+          </button>
+        </div>
+      </div>
+
+      {/* Product Details Section with Soft Shadow & Subtle Border */}
+      <div className="pt-3.5 pb-3 px-3 flex flex-col gap-1 bg-white border-x border-b border-[#EAE8E4]/60 rounded-b-md shadow-xs group-hover:shadow-md transition-shadow duration-300 z-10">
+        <span className="text-[10px] font-bold tracking-widest text-[#C4956A] uppercase">
+          {typeof product.category === "object"
+            ? product.category?.name
+            : "Catalog"}
+        </span>
+        <Link href={`/product/${product.slug || product.id}`}>
+          <h3 className="font-medium text-xs sm:text-sm text-[#151413] hover:text-[#C4956A] transition-colors line-clamp-1">
+            {product.name}
+          </h3>
+        </Link>
+
+        {/* Pricing */}
+        <div className="flex items-baseline gap-2 mt-0.5">
+          <span className="font-bold text-xs sm:text-sm text-[#151413]">
+            ₦{Number(displayPrice || 0).toLocaleString()}
+          </span>
+          {hasDiscount && (
+            <span className="text-[10px] sm:text-xs text-[#76726E] line-through font-normal">
+              ₦{Number(product.price).toLocaleString()}
+            </span>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}

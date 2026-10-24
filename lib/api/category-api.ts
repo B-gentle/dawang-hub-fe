@@ -3,7 +3,7 @@ import {
   CreateCategoryInput,
   UpdateCategoryInput,
 } from "@/types/category";
-import { fetcher } from "../api-client";
+import { fetcher } from "./fetcher";
 
 export const categoryApi = {
   getCategories: (query?: string) =>

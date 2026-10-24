@@ -1,5 +1,5 @@
 import Cookies from "js-cookie";
-import { fetcher, TOKEN_COOKIE_NAME } from "../api-client";
+import { fetcher, TOKEN_COOKIE_NAME } from "./fetcher";
 
 export const authApi = {
   login: async (credentials: { email: string; password: string }) => {

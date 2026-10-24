@@ -1,5 +1,5 @@
 import { Product, CreateProductInput } from "@/types/product";
-import { fetcher, API_BASE_URL, getAuthToken } from "../api-client";
+import { fetcher, API_BASE_URL, getAuthToken } from "./fetcher";
 
 export const productApi = {
   getProducts: (query?: string) =>

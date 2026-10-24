@@ -163,7 +163,7 @@ const Footer = () => {
           <div>
             © {currentYear} DAWANGHUB OFFICIAL STORE. ALL RIGHTS RESERVED.
           </div>
-          <div className="flex gap-6 items-center">
+          <div className="flex gap-4 md:gap-6 items-center">
             <Link
               href="/privacy"
               className="hover:text-foreground transition-colors duration-200"
