@@ -15,7 +15,7 @@ interface HeroProps {
 
 export default function Hero({
   videoId = "t1Nbqpse8kc",
-  subtitle = "Autumn / Winter Collection 2026",
+  subtitle = "Welcome to the Dawang Experience",
   title = "Fashion. Beauty. Lifestyle.",
   description = "Style that speaks, Quality that lasts",
   primaryCtaText = "Explore Catalog",
