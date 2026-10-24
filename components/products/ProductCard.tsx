@@ -14,28 +14,31 @@ export default function ProductCard({ product }: ProductCardProps) {
     product.discountPrice && product.discountPrice < product.price,
   );
   const displayPrice = hasDiscount ? product.discountPrice! : product.price;
+  const productHref = `/product/${product.id}`;
 
   return (
     <div className="group relative flex flex-col bg-white overflow-hidden transition-all duration-300 w-full rounded-b-md">
-      {/* Tall Portrait Image Container */}
+      {/* Image Stage Container (Clickable) */}
       <div className="relative aspect-4/5 w-full bg-[#FAF9F6] overflow-hidden z-20 shadow-xs group-hover:shadow-md transition-shadow duration-300">
-        {product.images && product.images.length > 0 ? (
-          <Image
-            src={product.images[0]}
-            alt={product.name}
-            fill
-            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
-            unoptimized
-            className="object-cover transition-transform duration-700 group-hover:scale-105"
-          />
-        ) : (
-          <div className="w-full h-full flex items-center justify-center text-[#A39E98]">
-            <FiImage className="w-8 h-8" />
-          </div>
-        )}
+        <Link href={productHref} className="absolute inset-0 z-0">
+          {product.images && product.images.length > 0 ? (
+            <Image
+              src={product.images[0]}
+              alt={product.name}
+              fill
+              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
+              unoptimized
+              className="object-cover transition-transform duration-700 group-hover:scale-105"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-[#A39E98]">
+              <FiImage className="w-8 h-8" />
+            </div>
+          )}
+        </Link>
 
         {/* Badges */}
-        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10">
+        <div className="absolute top-3 left-3 flex flex-col gap-1.5 z-10 pointer-events-none">
           {hasDiscount && (
             <span className="bg-rose-600 text-white text-[9px] font-bold tracking-widest uppercase px-2 py-0.5 rounded-xs">
               SALE
@@ -66,18 +69,19 @@ export default function ProductCard({ product }: ProductCardProps) {
         </div>
       </div>
 
-      {/* Product Details Section with Soft Shadow & Subtle Border */}
-      <div className="pt-3.5 pb-3 px-3 flex flex-col gap-1 bg-white border-x border-b border-[#EAE8E4]/60 rounded-b-md shadow-xs group-hover:shadow-md transition-shadow duration-300 z-10">
+      {/* Product Details Section Wrapped in Full Link */}
+      <Link
+        href={productHref}
+        className="pt-3.5 pb-3 px-3 flex flex-col gap-1 bg-white border-x border-b border-[#EAE8E4]/60 rounded-b-md shadow-xs group-hover:shadow-md transition-shadow duration-300 z-10 block cursor-pointer"
+      >
         <span className="text-[10px] font-bold tracking-widest text-[#C4956A] uppercase">
           {typeof product.category === "object"
             ? product.category?.name
             : "Catalog"}
         </span>
-        <Link href={`/product/${product.slug || product.id}`}>
-          <h3 className="font-medium text-xs sm:text-sm text-[#151413] hover:text-[#C4956A] transition-colors line-clamp-1">
-            {product.name}
-          </h3>
-        </Link>
+        <h3 className="font-medium text-xs sm:text-sm text-[#151413] group-hover:text-[#C4956A] transition-colors line-clamp-1">
+          {product.name}
+        </h3>
 
         {/* Pricing */}
         <div className="flex items-baseline gap-2 mt-0.5">
@@ -90,7 +94,7 @@ export default function ProductCard({ product }: ProductCardProps) {
             </span>
           )}
         </div>
-      </div>
+      </Link>
     </div>
   );
 }
