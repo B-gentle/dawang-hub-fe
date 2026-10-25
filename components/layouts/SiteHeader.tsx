@@ -21,8 +21,8 @@ import { useCart } from "@/context/CartContext";
 const NAV_LINKS = [
   { label: "Shop", href: "/shop" },
   { label: "Wishlist", href: "/wishlist" },
-  { label: "Clothes", href: "/clothes" },
-  { label: "Bags", href: "/bags" },
+  { label: "Clothes", href: "/shop" },
+  { label: "Bags", href: "/shop" },
 ];
 
 const TOKEN_COOKIE_NAME =

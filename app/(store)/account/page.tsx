@@ -1,42 +1,24 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import Cookies from "js-cookie";
 import {
-  FiUser,
   FiShoppingBag,
   FiLogOut,
   FiRefreshCw,
-  FiClock,
-  FiCheck,
-  FiMapPin,
   FiMail,
+  FiPlus,
+  FiTrash2,
+  FiEdit2,
+  FiStar,
 } from "react-icons/fi";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
-
-interface OrderItemResponse {
-  id: string;
-  productName: string;
-  unitPrice: number;
-  quantity: number;
-}
-
-interface OrderResponse {
-  id: string;
-  totalAmount: number;
-  status: string;
-  createdAt: string;
-  items?: OrderItemResponse[];
-  shippingAddress?: {
-    streetAddress: string;
-    city: string;
-    state: string;
-  };
-}
+import { AddressPayload } from "@/lib/api/users-api";
+import AddressModal from "@/components/account/AddressModal";
+import OrderList, { OrderResponse } from "@/components/account/OrderList";
 
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
@@ -46,50 +28,57 @@ export default function AccountPage() {
 
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [addresses, setAddresses] = useState<AddressPayload[]>([]);
   const [orders, setOrders] = useState<OrderResponse[]>([]);
 
+  // Modal controls
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<AddressPayload | null>(
+    null,
+  );
+
+  const loadAccountData = async () => {
+    const token = Cookies.get(TOKEN_COOKIE_NAME);
+    if (!token) {
+      router.push("/login?redirect=/account");
+      return;
+    }
+
+    try {
+      const [meRes, addrRes, ordersRes] = await Promise.allSettled([
+        apiClient.getMe(),
+        apiClient.getAddresses(),
+        apiClient.getUserOrders(),
+      ]);
+
+      if (meRes.status === "fulfilled") setProfile(meRes.value as UserProfile);
+      if (addrRes.status === "fulfilled" && Array.isArray(addrRes.value)) {
+        setAddresses(addrRes.value as AddressPayload[]);
+      }
+      if (ordersRes.status === "fulfilled" && Array.isArray(ordersRes.value)) {
+        setOrders(ordersRes.value as OrderResponse[]);
+      }
+    } catch (err) {
+      console.error("Failed to load account details:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    let isMounted = true;
+    let active = true;
 
-    const loadAccountData = async () => {
-      const token = Cookies.get(TOKEN_COOKIE_NAME);
-      if (!token) {
-        router.push("/login?redirect=/account");
-        return;
+    queueMicrotask(() => {
+      if (active) {
+        loadAccountData();
       }
-
-      try {
-        setLoading(true);
-        const [meRes, ordersRes] = await Promise.allSettled([
-          apiClient.getMe(),
-          apiClient.getUserOrders(),
-        ]);
-
-        if (!isMounted) return;
-
-        if (meRes.status === "fulfilled") {
-          setProfile(meRes.value as UserProfile);
-        }
-
-        if (
-          ordersRes.status === "fulfilled" &&
-          Array.isArray(ordersRes.value)
-        ) {
-          setOrders(ordersRes.value as OrderResponse[]);
-        }
-      } catch (err) {
-        console.error("Failed to load account details:", err);
-      } finally {
-        if (isMounted) setLoading(false);
-      }
-    };
-
-    loadAccountData();
+    });
 
     return () => {
-      isMounted = false;
+      active = false;
     };
-  }, [router]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleLogout = () => {
     apiClient.logout();
@@ -98,39 +87,49 @@ export default function AccountPage() {
     router.refresh();
   };
 
+  const handleSaveAddress = async (formData: AddressPayload) => {
+    try {
+      if (editingAddress?.id) {
+        await apiClient.updateAddress(editingAddress.id, formData);
+        toast.success("Address updated successfully");
+      } else {
+        if (addresses.length >= 3) {
+          toast.error("Maximum 3 saved addresses allowed.");
+          return;
+        }
+        await apiClient.addAddress(formData);
+        toast.success("Address saved successfully");
+      }
+
+      setIsModalOpen(false);
+      setEditingAddress(null);
+      await loadAccountData();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to save address";
+      toast.error(msg);
+    }
+  };
+
+  const handleDeleteAddress = async (id: string) => {
+    try {
+      await apiClient.deleteAddress(id);
+      toast.success("Address removed");
+      await loadAccountData();
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to delete address";
+      toast.error(msg);
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-[60vh] flex flex-col items-center justify-center gap-2 text-xs text-[#76726E]">
         <FiRefreshCw className="w-6 h-6 animate-spin text-[#C4956A]" />
-        Loading your dashboard...
+        Loading dashboard...
       </div>
     );
   }
-
-  const getStatusBadge = (status: string) => {
-    const uppercaseStatus = status?.toUpperCase() || "PENDING";
-    switch (uppercaseStatus) {
-      case "PAID":
-      case "DELIVERED":
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full border border-emerald-200">
-            <FiCheck className="w-3 h-3" /> {uppercaseStatus}
-          </span>
-        );
-      case "SHIPPED":
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-200">
-            {uppercaseStatus}
-          </span>
-        );
-      default:
-        return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full border border-amber-200">
-            <FiClock className="w-3 h-3" /> {uppercaseStatus}
-          </span>
-        );
-    }
-  };
 
   return (
     <div className="min-h-screen bg-white font-sans text-[#151413]">
@@ -154,11 +153,10 @@ export default function AccountPage() {
         </div>
       </div>
 
-      {/* Main Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-          {/* Profile Sidebar */}
-          <div className="lg:col-span-4 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md p-6 flex flex-col gap-6">
+          {/* Profile & Addresses Sidebar */}
+          <div className="lg:col-span-5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md p-6 flex flex-col gap-6">
             <div className="flex items-center gap-3 pb-4 border-b border-[#EAE8E4]">
               <div className="w-12 h-12 rounded-full bg-[#151413] text-white flex items-center justify-center font-bold text-sm uppercase">
                 {profile?.firstName?.[0] || "U"}
@@ -174,115 +172,99 @@ export default function AccountPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-3 text-xs text-[#76726E]">
-              <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-[#151413]">
-                Default Shipping Address
-              </h3>
-              {profile?.streetAddress ? (
-                <div className="flex items-start gap-2 bg-white p-3 border border-[#EAE8E4] rounded-md text-[#151413]">
-                  <FiMapPin className="w-4 h-4 text-[#C4956A] shrink-0 mt-0.5" />
-                  <div className="flex flex-col">
-                    <span>{profile.streetAddress}</span>
-                    <span>
-                      {profile.city}, {profile.state}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <p className="text-[11px] italic">
-                  Address details will be saved automatically upon completing
-                  your next purchase.
+            {/* Saved Addresses Section */}
+            <div className="flex flex-col gap-3">
+              <div className="flex justify-between items-center">
+                <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-[#151413]">
+                  Saved Delivery Addresses ({addresses.length}/3)
+                </h3>
+                {addresses.length < 3 && (
+                  <button
+                    onClick={() => {
+                      setEditingAddress(null);
+                      setIsModalOpen(true);
+                    }}
+                    className="text-[10px] font-bold text-[#C4956A] uppercase tracking-wider flex items-center gap-1 hover:underline cursor-pointer"
+                  >
+                    <FiPlus className="w-3.5 h-3.5" /> Add New
+                  </button>
+                )}
+              </div>
+
+              {addresses.length === 0 ? (
+                <p className="text-xs text-[#76726E] italic bg-white p-3 border border-[#EAE8E4] rounded-md">
+                  No addresses saved yet. You can save up to 3 addresses.
                 </p>
+              ) : (
+                <div className="flex flex-col gap-2.5">
+                  {addresses.map((addr) => (
+                    <div
+                      key={addr.id}
+                      className="bg-white p-3.5 border border-[#EAE8E4] rounded-md text-xs flex justify-between items-start"
+                    >
+                      <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-[#151413]">
+                            {addr.streetAddress}
+                          </span>
+                          {addr.isDefault && (
+                            <span className="text-[9px] font-bold uppercase text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded-xs flex items-center gap-0.5">
+                              <FiStar className="w-2.5 h-2.5" /> Default
+                            </span>
+                          )}
+                        </div>
+                        <span className="text-[#76726E]">
+                          {addr.city}, {addr.state} ({addr.country})
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => {
+                            setEditingAddress(addr);
+                            setIsModalOpen(true);
+                          }}
+                          className="text-[#76726E] hover:text-[#151413] p-1 cursor-pointer"
+                        >
+                          <FiEdit2 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          onClick={() =>
+                            addr.id && handleDeleteAddress(addr.id)
+                          }
+                          className="text-rose-500 hover:text-rose-700 p-1 cursor-pointer"
+                        >
+                          <FiTrash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               )}
             </div>
           </div>
 
-          {/* Orders Section */}
-          <div className="lg:col-span-8 flex flex-col gap-6">
-            <div className="flex justify-between items-center pb-3 border-b border-[#EAE8E4]">
-              <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413] flex items-center gap-2">
-                <FiShoppingBag className="w-4 h-4 text-[#C4956A]" /> Order
-                History ({orders.length})
-              </h2>
-            </div>
+          {/* Order History Column */}
+          <div className="lg:col-span-7 flex flex-col gap-6">
+            <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413] flex items-center gap-2 pb-2 border-b border-[#EAE8E4]">
+              <FiShoppingBag className="w-4 h-4 text-[#C4956A]" /> Order History
+              ({orders.length})
+            </h2>
 
-            {orders.length === 0 ? (
-              <div className="p-8 border border-[#EAE8E4] bg-[#FAF9F6] rounded-md text-center flex flex-col items-center gap-3">
-                <FiShoppingBag className="w-8 h-8 text-[#A39E98]" />
-                <p className="font-heading text-xs font-bold uppercase text-[#151413]">
-                  No Orders Placed Yet
-                </p>
-                <p className="text-xs text-[#76726E] max-w-xs">
-                  Your future completed purchases will be listed here.
-                </p>
-                <Link
-                  href="/shop"
-                  className="mt-2 px-6 py-2.5 bg-[#151413] text-white text-xs font-bold uppercase tracking-widest rounded-md hover:bg-[#2A2725] transition-colors"
-                >
-                  Start Shopping
-                </Link>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {orders.map((order) => (
-                  <div
-                    key={order.id}
-                    className="border border-[#EAE8E4] bg-white rounded-md p-5 flex flex-col gap-4 shadow-xs"
-                  >
-                    <div className="flex flex-wrap justify-between items-center gap-2 pb-3 border-b border-[#EAE8E4]">
-                      <div className="flex flex-col">
-                        <span className="text-[10px] font-mono text-[#76726E] uppercase">
-                          Ref: {order.id}
-                        </span>
-                        <span className="text-xs text-[#76726E]">
-                          {new Date(order.createdAt).toLocaleDateString(
-                            "en-US",
-                            {
-                              year: "numeric",
-                              month: "short",
-                              day: "numeric",
-                            },
-                          )}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        {getStatusBadge(order.status)}
-                        <span className="font-bold text-sm text-[#151413]">
-                          ₦{Number(order.totalAmount).toLocaleString()}
-                        </span>
-                      </div>
-                    </div>
-
-                    {order.items && order.items.length > 0 && (
-                      <div className="flex flex-col gap-2">
-                        {order.items.map((item) => (
-                          <div
-                            key={item.id}
-                            className="flex justify-between items-center text-xs text-[#151413]"
-                          >
-                            <span className="font-medium">
-                              {item.productName}{" "}
-                              <span className="text-[#76726E]">
-                                x{item.quantity}
-                              </span>
-                            </span>
-                            <span className="font-bold text-[#C4956A]">
-                              ₦
-                              {(
-                                Number(item.unitPrice) * item.quantity
-                              ).toLocaleString()}
-                            </span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            )}
+            <OrderList orders={orders} />
           </div>
         </div>
       </div>
+
+      <AddressModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setEditingAddress(null);
+        }}
+        onSave={handleSaveAddress}
+        initialData={editingAddress}
+        isEditing={!!editingAddress}
+      />
     </div>
   );
 }
