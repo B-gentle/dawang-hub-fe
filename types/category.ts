@@ -1,19 +1,27 @@
 export interface Category {
   id: string;
   name: string;
-  slug: string;
+  slug?: string;
   description?: string;
   imageUrl?: string;
-  parentId?: string;
+  parentId?: string | null;
+  parent?: Category | null;
+  isActive?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
 
-export type CreateCategoryInput = {
+export interface CreateCategoryInput {
   name: string;
   description?: string;
   imageUrl?: string;
   parentId?: string;
-};
+}
 
-export type UpdateCategoryInput = Partial<CreateCategoryInput>;
+export interface UpdateCategoryInput {
+  name?: string;
+  description?: string;
+  imageUrl?: string;
+  parentId?: string | null;
+  isActive?: boolean;
+}

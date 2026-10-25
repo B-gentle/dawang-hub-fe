@@ -8,6 +8,7 @@ import {
   LuLayoutGrid,
   LuShoppingBag,
   LuPackage,
+  LuFolderTree,
   LuUsers,
   LuChartBar,
   LuSettings,
@@ -77,6 +78,7 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
       badge: orderCount !== null && orderCount > 0 ? orderCount : undefined,
     },
     { label: "Products", href: "/admin/products", icon: LuPackage },
+    { label: "Categories", href: "/admin/categories", icon: LuFolderTree },
     { label: "Customers", href: "/admin/customers", icon: LuUsers },
     { label: "Analytics", href: "/admin/analytics", icon: LuChartBar },
   ];
