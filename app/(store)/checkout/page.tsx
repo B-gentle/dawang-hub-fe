@@ -12,6 +12,7 @@ import CheckoutForm, {
 import OrderSummaryCard from "@/components/checkout/OrderSummaryCard";
 import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
+import { AddressPayload } from "@/lib/api/users-api";
 
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
@@ -25,11 +26,11 @@ export default function CheckoutPage() {
 
   const shippingFee = subtotal >= 150000 || subtotal === 0 ? 0 : 5000;
 
-  // Fetch returning user profile if authenticated
+  // Fetch returning user profile and default saved address if authenticated
   useEffect(() => {
     let active = true;
 
-    const fetchProfile = async () => {
+    const fetchUserData = async () => {
       const token = Cookies.get(TOKEN_COOKIE_NAME);
       if (!token) return;
 
@@ -38,16 +39,47 @@ export default function CheckoutPage() {
       });
 
       try {
-        const user = (await apiClient.getMe()) as UserProfile;
-        if (active && user) {
-          setUserProfile(user);
+        const [userRes, addressesRes] = await Promise.allSettled([
+          apiClient.getMe(),
+          apiClient.getAddresses(),
+        ]);
+
+        if (!active) return;
+
+        let user: UserProfile | null = null;
+        if (userRes.status === "fulfilled" && userRes.value) {
+          user = userRes.value as UserProfile;
+        }
+
+        let defaultAddr: AddressPayload | undefined;
+        if (
+          addressesRes.status === "fulfilled" &&
+          Array.isArray(addressesRes.value)
+        ) {
+          const addrs = addressesRes.value as AddressPayload[];
+          defaultAddr = addrs.find((a) => a.isDefault) || addrs[0];
+        }
+
+        if (user) {
+          // Merge profile contact info with default saved shipping address
+          setUserProfile({
+            ...user,
+            phoneNumber: user.phoneNumber || "",
+            streetAddress:
+              defaultAddr?.streetAddress || user.streetAddress || "",
+            city: defaultAddr?.city || user.city || "Port Harcourt",
+            state: defaultAddr?.state || user.state || "Rivers",
+          });
         }
       } catch (err) {
-        console.warn("Could not fetch user profile for checkout:", err);
+        console.warn(
+          "Could not fetch user profile or address for checkout:",
+          err,
+        );
       }
     };
 
-    fetchProfile();
+    fetchUserData();
 
     return () => {
       active = false;
@@ -63,7 +95,6 @@ export default function CheckoutPage() {
     try {
       setIsProcessing(true);
 
-      // 1. Map shipping payload and cart line items
       const orderPayload = {
         shippingAddress: {
           firstName: shippingData.firstName,
@@ -87,14 +118,11 @@ export default function CheckoutPage() {
         throw new Error("Failed to generate order reference.");
       }
 
-      // 3. Initialize Paystack Transaction
       toast.info("Connecting to Paystack...");
       const paymentData = await apiClient.initializePayment(order.id);
 
       if (paymentData?.authorization_url) {
-        // Clear local & server cart before navigating to gateway
         await clearCart();
-
         toast.success("Redirecting to Paystack secure checkout...");
         window.location.href = paymentData.authorization_url;
       } else {

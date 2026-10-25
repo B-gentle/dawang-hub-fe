@@ -26,7 +26,7 @@ interface UserProfileData {
   firstName?: string;
   lastName?: string;
   email?: string;
-  phone?: string;
+  phoneNumber?: string;
   streetAddress?: string;
   city?: string;
   state?: string;
@@ -64,7 +64,7 @@ export default function CheckoutForm({
           firstName: user.firstName || prev.firstName,
           lastName: user.lastName || prev.lastName,
           email: user.email || prev.email,
-          phone: user.phone || prev.phone,
+          phoneNumber: user.phoneNumber || prev.phone,
           streetAddress: user.streetAddress || prev.streetAddress,
           city: user.city || prev.city,
           state: user.state || prev.state,
