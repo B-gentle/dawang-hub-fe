@@ -25,6 +25,7 @@ export default function CheckoutPage() {
 
   const shippingFee = subtotal >= 150000 || subtotal === 0 ? 0 : 5000;
 
+  // Fetch returning user profile if authenticated
   useEffect(() => {
     let active = true;
 
@@ -53,19 +54,59 @@ export default function CheckoutPage() {
     };
   }, []);
 
-  const handleCheckoutSubmit = async (_shippingData: ShippingAddressData) => {
+  const handleCheckoutSubmit = async (shippingData: ShippingAddressData) => {
+    if (cart.length === 0) {
+      toast.error("Your shopping bag is empty");
+      return;
+    }
+
     try {
       setIsProcessing(true);
 
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      // 1. Map shipping payload and cart line items
+      const orderPayload = {
+        shippingAddress: {
+          firstName: shippingData.firstName,
+          lastName: shippingData.lastName,
+          email: shippingData.email,
+          phone: shippingData.phone,
+          streetAddress: shippingData.streetAddress,
+          city: shippingData.city,
+          state: shippingData.state,
+        },
+        items: cart.map((item) => ({
+          productId: item.product.id,
+          quantity: item.quantity,
+        })),
+      };
 
-      toast.success("Order registered successfully!");
-      setOrderComplete(true);
+      toast.info("Registering your order...");
+      const order = await apiClient.createOrder(orderPayload);
 
-      await clearCart();
-    } catch (err) {
-      console.error("Failed to complete checkout:", err);
-      toast.error("Checkout failed. Please try again.");
+      if (!order?.id) {
+        throw new Error("Failed to generate order reference.");
+      }
+
+      // 3. Initialize Paystack Transaction
+      toast.info("Connecting to Paystack...");
+      const paymentData = await apiClient.initializePayment(order.id);
+
+      if (paymentData?.authorization_url) {
+        // Clear local & server cart before navigating to gateway
+        await clearCart();
+
+        toast.success("Redirecting to Paystack secure checkout...");
+        window.location.href = paymentData.authorization_url;
+      } else {
+        throw new Error("Could not initialize payment gateway.");
+      }
+    } catch (err: unknown) {
+      console.error("Checkout process error:", err);
+      const errorMessage =
+        err instanceof Error
+          ? err.message
+          : "Checkout failed. Please try again.";
+      toast.error(errorMessage);
     } finally {
       setIsProcessing(false);
     }
