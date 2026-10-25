@@ -41,6 +41,24 @@ export interface VerifyPaymentResponse {
   orderId?: string;
 }
 
+export interface OrderItemResponse {
+  id: string;
+  productName: string;
+  unitPrice: number;
+  quantity: number;
+}
+
+export interface OrderResponse {
+  id: string;
+  totalAmount: number;
+  status: string;
+  shippingAddress: ShippingAddressPayload;
+  items?: OrderItemResponse[];
+  courierName?: string;
+  trackingNumber?: string;
+  createdAt: string;
+}
+
 export interface PaginatedOrdersResponse {
   data: OrderResponse[];
   total: number;
@@ -54,6 +72,12 @@ export interface GetOrdersParams {
   sort?: "ASC" | "DESC";
 }
 
+export interface UpdateOrderStatusPayload {
+  status: "PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+  courierName?: string;
+  trackingNumber?: string;
+}
+
 export const ordersApi = {
   createOrder: (payload: CreateOrderPayload) =>
     fetcher<OrderResponse>("/orders/checkout", {
@@ -62,6 +86,8 @@ export const ordersApi = {
     }),
 
   getUserOrders: () => fetcher<OrderResponse[]>("/orders"),
+
+  getOrderById: (id: string) => fetcher<OrderResponse>(`/orders/${id}`),
 
   getAllOrdersAdmin: (params?: GetOrdersParams) => {
     const searchParams = new URLSearchParams();
@@ -76,6 +102,12 @@ export const ordersApi = {
       `/orders/admin/all${queryString ? `?${queryString}` : ""}`,
     );
   },
+
+  updateOrderStatusAdmin: (id: string, payload: UpdateOrderStatusPayload) =>
+    fetcher<OrderResponse>(`/orders/admin/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 
   initializePayment: (orderId: string) =>
     fetcher<InitializePaymentResponse>(`/payments/initialize/${orderId}`, {
