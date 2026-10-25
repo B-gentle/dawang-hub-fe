@@ -50,6 +50,8 @@ export const ordersApi = {
 
   getUserOrders: () => fetcher<OrderResponse[]>("/orders"),
 
+  getAllOrdersAdmin: () => fetcher<OrderResponse[]>("/orders/admin/all"),
+
   initializePayment: (orderId: string) =>
     fetcher<InitializePaymentResponse>(`/payments/initialize/${orderId}`, {
       method: "POST",
