@@ -40,7 +40,23 @@ export interface DashboardAnalyticsResponse {
   inventoryAlerts: InventoryAlerts;
 }
 
+export interface RevenueDataPoint {
+  label: string;
+  revenue: number;
+}
+
+export interface RevenueOverviewResponse {
+  period: "weekly" | "monthly" | "yearly";
+  comparedToPreviousPeriodPercentage: number;
+  data: RevenueDataPoint[];
+}
+
 export const adminApi = {
   getDashboardAnalytics: () =>
     fetcher<DashboardAnalyticsResponse>("/admin/analytics/dashboard"),
+
+  getRevenueOverview: (period: "weekly" | "monthly" | "yearly" = "monthly") =>
+    fetcher<RevenueOverviewResponse>(
+      `/admin/analytics/revenue-overview?period=${period}`,
+    ),
 };
