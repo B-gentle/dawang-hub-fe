@@ -41,8 +41,8 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
 
       try {
         const orders = await apiClient.getAllOrdersAdmin();
-        if (active && Array.isArray(orders)) {
-          setOrderCount(orders.length);
+        if (active) {
+          setOrderCount(orders.total);
         }
       } catch (err) {
         console.warn("Could not fetch admin system orders count:", err);

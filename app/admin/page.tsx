@@ -14,10 +14,12 @@ import {
 } from "react-icons/lu";
 import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
-import { DashboardKPIs } from "@/lib/api/admin-api";
+import { DashboardAnalyticsResponse, DashboardKPIs } from "@/lib/api/admin-api";
 import { getTimeGreeting } from "@/lib/utils/date";
 import RevenueOverviewChart from "@/components/admin/RevenueOverviewChart";
 import TopProductsCard from "@/components/admin/TopProductsCard";
+import RecentOrdersTable from "@/components/admin/RecentOrdersTable";
+import InventoryAlertsCard from "@/components/admin/InventoryAlertsCard";
 
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
@@ -25,7 +27,8 @@ const TOKEN_COOKIE_NAME =
 export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [adminUser, setAdminUser] = useState<UserProfile | null>(null);
-  const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
+  const [analyticsData, setAnalyticsData] =
+    useState<DashboardAnalyticsResponse | null>(null);
   const [greeting, setGreeting] = useState<string>("Good day");
 
   useEffect(() => {
@@ -50,8 +53,8 @@ export default function AdminDashboardPage() {
           setAdminUser(meRes.value as UserProfile);
         }
 
-        if (analyticsRes.status === "fulfilled" && analyticsRes.value?.kpis) {
-          setKpis(analyticsRes.value.kpis);
+        if (analyticsRes.status === "fulfilled" && analyticsRes.value) {
+          setAnalyticsData(analyticsRes.value);
         }
       } catch (err) {
         console.error("Failed to load admin dashboard analytics:", err);
@@ -72,6 +75,7 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
+  const kpis: DashboardKPIs | undefined = analyticsData?.kpis;
   const adminName = adminUser?.firstName ? adminUser.firstName : "Admin";
 
   const renderGrowthBadge = (percentage?: number) => {
@@ -205,6 +209,10 @@ export default function AdminDashboardPage() {
       <RevenueOverviewChart />
       {/* Top Products Section */}
       <TopProductsCard />
+      {/* Recent Orders Section */}
+      <RecentOrdersTable />
+      {/* Inventory Alert section */}
+      <InventoryAlertsCard alerts={analyticsData?.inventoryAlerts} />
     </div>
   );
 }
