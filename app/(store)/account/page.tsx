@@ -12,12 +12,14 @@ import {
   FiTrash2,
   FiEdit2,
   FiStar,
+  FiPhone,
 } from "react-icons/fi";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
-import { AddressPayload } from "@/lib/api/users-api";
+import { AddressPayload, UpdateProfilePayload } from "@/lib/api/users-api";
 import AddressModal from "@/components/account/AddressModal";
+import EditProfileModal from "@/components/account/EditProfileModal";
 import OrderList, { OrderResponse } from "@/components/account/OrderList";
 
 const TOKEN_COOKIE_NAME =
@@ -32,7 +34,8 @@ export default function AccountPage() {
   const [orders, setOrders] = useState<OrderResponse[]>([]);
 
   // Modal controls
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<AddressPayload | null>(
     null,
   );
@@ -87,6 +90,19 @@ export default function AccountPage() {
     router.refresh();
   };
 
+  const handleSaveProfile = async (formData: UpdateProfilePayload) => {
+    try {
+      await apiClient.updateProfile(formData);
+      toast.success("Profile updated successfully");
+      setIsProfileModalOpen(false);
+      await loadAccountData();
+    } catch (err: unknown) {
+      const msg =
+        err instanceof Error ? err.message : "Failed to update profile";
+      toast.error(msg);
+    }
+  };
+
   const handleSaveAddress = async (formData: AddressPayload) => {
     try {
       if (editingAddress?.id) {
@@ -101,7 +117,7 @@ export default function AccountPage() {
         toast.success("Address saved successfully");
       }
 
-      setIsModalOpen(false);
+      setIsAddressModalOpen(false);
       setEditingAddress(null);
       await loadAccountData();
     } catch (err: unknown) {
@@ -157,19 +173,35 @@ export default function AccountPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Profile & Addresses Sidebar */}
           <div className="lg:col-span-5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md p-6 flex flex-col gap-6">
-            <div className="flex items-center gap-3 pb-4 border-b border-[#EAE8E4]">
-              <div className="w-12 h-12 rounded-full bg-[#151413] text-white flex items-center justify-center font-bold text-sm uppercase">
-                {profile?.firstName?.[0] || "U"}
-                {profile?.lastName?.[0] || ""}
+            {/* User Profile Card */}
+            <div className="flex justify-between items-start pb-4 border-b border-[#EAE8E4]">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-full bg-[#151413] text-white flex items-center justify-center font-bold text-sm uppercase shrink-0">
+                  {profile?.firstName?.[0] || "U"}
+                  {profile?.lastName?.[0] || ""}
+                </div>
+                <div className="flex flex-col">
+                  <h2 className="font-bold text-sm text-[#151413]">
+                    {profile?.firstName} {profile?.lastName}
+                  </h2>
+                  <span className="text-xs text-[#76726E] flex items-center gap-1 mt-0.5">
+                    <FiMail className="w-3 h-3 text-[#C4956A]" />{" "}
+                    {profile?.email}
+                  </span>
+                  {profile?.phoneNumber && (
+                    <span className="text-xs text-[#76726E] flex items-center gap-1 mt-0.5">
+                      <FiPhone className="w-3 h-3 text-[#C4956A]" />{" "}
+                      {profile.phoneNumber}
+                    </span>
+                  )}
+                </div>
               </div>
-              <div className="flex flex-col">
-                <h2 className="font-bold text-sm text-[#151413]">
-                  {profile?.firstName} {profile?.lastName}
-                </h2>
-                <span className="text-xs text-[#76726E] flex items-center gap-1 mt-0.5">
-                  <FiMail className="w-3 h-3 text-[#C4956A]" /> {profile?.email}
-                </span>
-              </div>
+              <button
+                onClick={() => setIsProfileModalOpen(true)}
+                className="text-[10px] font-bold text-[#C4956A] uppercase tracking-wider flex items-center gap-1 hover:underline cursor-pointer"
+              >
+                <FiEdit2 className="w-3.5 h-3.5" /> Edit
+              </button>
             </div>
 
             {/* Saved Addresses Section */}
@@ -182,7 +214,7 @@ export default function AccountPage() {
                   <button
                     onClick={() => {
                       setEditingAddress(null);
-                      setIsModalOpen(true);
+                      setIsAddressModalOpen(true);
                     }}
                     className="text-[10px] font-bold text-[#C4956A] uppercase tracking-wider flex items-center gap-1 hover:underline cursor-pointer"
                   >
@@ -221,7 +253,7 @@ export default function AccountPage() {
                         <button
                           onClick={() => {
                             setEditingAddress(addr);
-                            setIsModalOpen(true);
+                            setIsAddressModalOpen(true);
                           }}
                           className="text-[#76726E] hover:text-[#151413] p-1 cursor-pointer"
                         >
@@ -255,10 +287,19 @@ export default function AccountPage() {
         </div>
       </div>
 
+      {/* Edit Profile Modal */}
+      <EditProfileModal
+        isOpen={isProfileModalOpen}
+        onClose={() => setIsProfileModalOpen(false)}
+        onSave={handleSaveProfile}
+        profile={profile}
+      />
+
+      {/* Address Modal */}
       <AddressModal
-        isOpen={isModalOpen}
+        isOpen={isAddressModalOpen}
         onClose={() => {
-          setIsModalOpen(false);
+          setIsAddressModalOpen(false);
           setEditingAddress(null);
         }}
         onSave={handleSaveAddress}

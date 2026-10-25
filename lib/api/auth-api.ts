@@ -8,7 +8,7 @@ export interface UserProfile {
   lastName: string;
   role?: string;
   isActive?: boolean;
-  phone?: string;
+  phoneNumber?: string;
   streetAddress?: string;
   city?: string;
   state?: string;

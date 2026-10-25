@@ -13,7 +13,7 @@ export interface AddressPayload {
 export interface UpdateProfilePayload {
   firstName?: string;
   lastName?: string;
-  phone?: string;
+  phoneNumber?: string;
 }
 
 export const usersApi = {
