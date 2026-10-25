@@ -1,6 +1,23 @@
 import { Product, CreateProductInput } from "@/types/product";
 import { fetcher, API_BASE_URL, getAuthToken } from "./fetcher";
 
+export interface Review {
+  id: string;
+  rating: number;
+  comment: string;
+  createdAt: string;
+  user?: {
+    firstName: string;
+    lastName: string;
+  };
+}
+
+export interface CreateReviewInput {
+  productId: string;
+  rating: number;
+  comment: string;
+}
+
 export const productApi = {
   getProducts: (query?: string) =>
     fetcher<Product[]>(`/products${query ? `?${query}` : ""}`),
@@ -22,6 +39,16 @@ export const productApi = {
   deleteProduct: (id: string) =>
     fetcher<{ success: boolean }>(`/products/${id}`, {
       method: "DELETE",
+    }),
+
+  // --- Review Endpoints ---
+  getProductReviews: (productId: string) =>
+    fetcher<Review[]>(`/reviews/product/${productId}`),
+
+  createReview: (data: CreateReviewInput) =>
+    fetcher<Review>("/reviews", {
+      method: "POST",
+      body: JSON.stringify(data),
     }),
 
   // --- Wishlist Endpoints ---

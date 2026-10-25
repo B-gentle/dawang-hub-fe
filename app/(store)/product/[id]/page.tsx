@@ -17,7 +17,9 @@ import {
 import { FaHeart } from "react-icons/fa";
 import { apiClient } from "@/lib/api-client";
 import { Product } from "@/types/product";
+import { Review } from "@/lib/api/product-api";
 import ProductGrid from "@/components/products/ProductGrid";
+import ProductReviews from "@/components/products/ProductReviews";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCart } from "@/context/CartContext";
 
@@ -29,6 +31,7 @@ export default function ProductDetailPage({ params }: PageProps) {
   const { id } = use(params);
 
   const [product, setProduct] = useState<Product | null>(null);
+  const [reviews, setReviews] = useState<Review[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [selectedImage, setSelectedImage] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
@@ -37,8 +40,18 @@ export default function ProductDetailPage({ params }: PageProps) {
   const { isInWishlist, toggleWishlist } = useWishlist();
   const { addToCart } = useCart();
 
-  // Accordion state toggles
   const [activeTab, setActiveTab] = useState<string | null>("description");
+
+  const loadReviews = async () => {
+    try {
+      const revs = await apiClient.getProductReviews(id);
+      if (Array.isArray(revs)) {
+        setReviews(revs);
+      }
+    } catch (err) {
+      console.warn("Could not load product reviews:", err);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -46,27 +59,36 @@ export default function ProductDetailPage({ params }: PageProps) {
     const fetchProductDetails = async () => {
       try {
         setLoading(true);
-        const data = (await apiClient.getProductById(id)) as Product;
+        const [dataRes, revsRes] = await Promise.allSettled([
+          apiClient.getProductById(id),
+          apiClient.getProductReviews(id),
+        ]);
 
         if (!isMounted) return;
 
-        setProduct(data);
-        if (data.images && data.images.length > 0) {
-          setSelectedImage(data.images[0]);
+        if (dataRes.status === "fulfilled" && dataRes.value) {
+          const data = dataRes.value as Product;
+          setProduct(data);
+          if (data.images && data.images.length > 0) {
+            setSelectedImage(data.images[0]);
+          }
+
+          if (data.categoryId) {
+            const allRes = await apiClient.getProducts();
+            const catalog: Product[] = Array.isArray(allRes)
+              ? allRes
+              : (allRes as { items?: Product[] })?.items || [];
+
+            const related = catalog.filter(
+              (item) =>
+                item.categoryId === data.categoryId && item.id !== data.id,
+            );
+            setRelatedProducts(related);
+          }
         }
 
-        // Fetch catalog for related items matching category
-        if (data.categoryId) {
-          const allRes = await apiClient.getProducts();
-          const catalog: Product[] = Array.isArray(allRes)
-            ? allRes
-            : (allRes as { items?: Product[] })?.items || [];
-
-          const related = catalog.filter(
-            (item) =>
-              item.categoryId === data.categoryId && item.id !== data.id,
-          );
-          setRelatedProducts(related);
+        if (revsRes.status === "fulfilled" && Array.isArray(revsRes.value)) {
+          setReviews(revsRes.value as Review[]);
         }
       } catch (err) {
         console.error("Failed to load product details:", err);
@@ -148,9 +170,8 @@ export default function ProductDetailPage({ params }: PageProps) {
       {/* Main Product Showcase Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-          {/* Left Column: Image Gallery */}
+          {/* Gallery */}
           <div className="lg:col-span-7 flex flex-col-reverse sm:flex-row gap-4">
-            {/* Thumbnails */}
             {product.images && product.images.length > 1 && (
               <div className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-y-auto max-h-[500px] shrink-0 no-scrollbar">
                 {product.images.map((imgUrl, index) => (
@@ -175,7 +196,6 @@ export default function ProductDetailPage({ params }: PageProps) {
               </div>
             )}
 
-            {/* Main Active Image Display */}
             <div className="relative aspect-4/5 w-full bg-[#FAF9F6] border border-[#EAE8E4] rounded-md overflow-hidden flex-1">
               {selectedImage ? (
                 <Image
@@ -192,7 +212,6 @@ export default function ProductDetailPage({ params }: PageProps) {
                 </div>
               )}
 
-              {/* Badges */}
               <div className="absolute top-4 left-4 flex flex-col gap-1.5 z-10">
                 {hasDiscount && (
                   <span className="bg-rose-600 text-white text-[10px] font-bold tracking-widest uppercase px-2.5 py-1 rounded-xs">
@@ -208,7 +227,7 @@ export default function ProductDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Right Column: Product Info & Actions */}
+          {/* Details */}
           <div className="lg:col-span-5 flex flex-col gap-6">
             <div>
               <span className="text-xs font-bold tracking-widest text-[#C4956A] uppercase block mb-1">
@@ -226,7 +245,6 @@ export default function ProductDetailPage({ params }: PageProps) {
               )}
             </div>
 
-            {/* Pricing Bar */}
             <div className="flex items-baseline gap-3 pb-4 border-b border-[#EAE8E4]">
               <span className="font-bold text-2xl text-[#151413]">
                 ₦{Number(displayPrice || 0).toLocaleString()}
@@ -238,7 +256,6 @@ export default function ProductDetailPage({ params }: PageProps) {
               )}
             </div>
 
-            {/* Availability Status */}
             <div className="flex items-center gap-2">
               <span
                 className={`w-2.5 h-2.5 rounded-full ${
@@ -254,7 +271,6 @@ export default function ProductDetailPage({ params }: PageProps) {
               </span>
             </div>
 
-            {/* Quantity Selector & Add to Bag */}
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <div className="flex items-center justify-between border border-[#EAE8E4] rounded-md bg-[#FAF9F6] px-3 py-2.5 w-full sm:w-32">
                 <button
@@ -282,7 +298,6 @@ export default function ProductDetailPage({ params }: PageProps) {
                 <FiShoppingBag className="w-4 h-4" /> Add To Shopping Bag
               </button>
 
-              {/* Connected Wishlist Toggle */}
               <button
                 onClick={() => toggleWishlist(product)}
                 className="p-3.5 border border-[#EAE8E4] rounded-md hover:border-[#151413] transition-colors flex items-center justify-center cursor-pointer"
@@ -298,7 +313,6 @@ export default function ProductDetailPage({ params }: PageProps) {
               </button>
             </div>
 
-            {/* Value Guarantees */}
             <div className="grid grid-cols-2 gap-3 pt-4 border-t border-[#EAE8E4] text-xs text-[#76726E]">
               <div className="flex items-center gap-2.5">
                 <FiTruck className="w-4 h-4 text-[#C4956A] shrink-0" />
@@ -310,7 +324,7 @@ export default function ProductDetailPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Accordion Tabs */}
+            {/* Accordion Section */}
             <div className="flex flex-col border-t border-[#EAE8E4] pt-4 mt-2 divide-y divide-[#EAE8E4]">
               <div className="py-3">
                 <button
@@ -329,6 +343,30 @@ export default function ProductDetailPage({ params }: PageProps) {
                     {product.description ||
                       "Crafted with meticulous attention to detail using high-grade materials for optimal elegance and longevity."}
                   </p>
+                )}
+              </div>
+
+              {/* Product Reviews Accordion */}
+              <div className="py-3">
+                <button
+                  onClick={() => toggleTab("reviews")}
+                  className="w-full flex justify-between items-center text-xs font-bold uppercase tracking-wider text-[#151413] text-left cursor-pointer"
+                >
+                  <span>Customer Reviews ({reviews.length})</span>
+                  <FiChevronDown
+                    className={`w-4 h-4 transition-transform duration-200 ${
+                      activeTab === "reviews" ? "rotate-180" : ""
+                    }`}
+                  />
+                </button>
+                {activeTab === "reviews" && (
+                  <div className="mt-4">
+                    <ProductReviews
+                      productId={product.id}
+                      reviews={reviews}
+                      onReviewAdded={loadReviews}
+                    />
+                  </div>
                 )}
               </div>
 
@@ -362,7 +400,7 @@ export default function ProductDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Related Products Section */}
+      {/* Related Products */}
       {relatedProducts.length > 0 && (
         <div className="bg-[#FAF9F6] border-t border-[#EAE8E4] mt-12">
           <ProductGrid

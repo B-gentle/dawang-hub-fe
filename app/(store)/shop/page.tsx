@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, Suspense } from "react";
+import { useSearchParams } from "next/navigation";
 import {
   FiFilter,
   FiX,
@@ -20,7 +21,11 @@ interface PaginatedResponse<T> {
   products?: T[];
 }
 
-export default function ShopPage() {
+function ShopContent() {
+  const searchParams = useSearchParams();
+  const categoryParam = searchParams.get("category");
+  const queryParam = searchParams.get("q");
+
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -33,6 +38,16 @@ export default function ShopPage() {
   >("newest");
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
+  // Set initial search query from URL parameter if provided
+  useEffect(() => {
+    if (queryParam) {
+      queueMicrotask(() => {
+        setSearchQuery(queryParam);
+      });
+    }
+  }, [queryParam]);
+
+  // Load Catalog Data
   useEffect(() => {
     let isMounted = true;
 
@@ -87,17 +102,49 @@ export default function ShopPage() {
     };
   }, []);
 
+  // Synchronize category selection from URL param (e.g., ?category=clothes)
+  useEffect(() => {
+    if (!categoryParam || categories.length === 0) return;
+
+    const target = categoryParam.toLowerCase().trim();
+    const matchedCategory = categories.find((cat) => {
+      const catIdMatches = cat.id.toLowerCase() === target;
+      const catNameMatches = cat.name.toLowerCase().includes(target);
+      const catSlugMatches = cat.slug?.toLowerCase() === target;
+      return catIdMatches || catNameMatches || catSlugMatches;
+    });
+
+    queueMicrotask(() => {
+      if (matchedCategory) {
+        setSelectedCategory(matchedCategory.id);
+      } else {
+        setSelectedCategory(target);
+      }
+    });
+  }, [categoryParam, categories]);
+
   // Filter & Sort Pipeline
   const filteredProducts = useMemo(() => {
     return products
       .filter((product) => {
         // Category Filter
         if (selectedCategory !== "all") {
+          const target = selectedCategory.toLowerCase();
+
           const catIdMatches = product.categoryId === selectedCategory;
-          const nestedCatMatches =
+          const nestedCatIdMatches =
             typeof product.category === "object" &&
             product.category?.id === selectedCategory;
-          if (!catIdMatches && !nestedCatMatches) return false;
+
+          const categoryName = (
+            typeof product.category === "object" ? product.category?.name : ""
+          )?.toLowerCase();
+
+          const nameMatches = categoryName && categoryName.includes(target);
+
+          if (!catIdMatches && !nestedCatIdMatches && !nameMatches) {
+            return false;
+          }
         }
 
         // Search Query Filter
@@ -265,12 +312,13 @@ export default function ShopPage() {
                   </button>
                 </li>
                 {categories.map((cat) => {
-                  const count = products.filter(
-                    (p) =>
-                      p.categoryId === cat.id ||
-                      (typeof p.category === "object" &&
-                        p.category?.id === cat.id),
-                  ).length;
+                  const count = products.filter((p) => {
+                    const idMatches = p.categoryId === cat.id;
+                    const nestedIdMatches =
+                      typeof p.category === "object" &&
+                      p.category?.id === cat.id;
+                    return idMatches || nestedIdMatches;
+                  }).length;
 
                   return (
                     <li key={cat.id}>
@@ -400,5 +448,20 @@ export default function ShopPage() {
         </div>
       )}
     </div>
+  );
+}
+
+export default function ShopPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-2 text-xs text-[#76726E]">
+          <FiRefreshCw className="w-6 h-6 animate-spin text-[#C4956A]" />
+          Loading shop catalog...
+        </div>
+      }
+    >
+      <ShopContent />
+    </Suspense>
   );
 }

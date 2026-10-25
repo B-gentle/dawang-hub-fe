@@ -34,7 +34,7 @@ export default function ProductGrid({
       {/* Header Layout */}
       <div className="flex items-end justify-between gap-4 mb-6 sm:mb-8 pb-3 border-b border-[#EAE8E4]">
         <div>
-          <h2 className="font-heading text-2xl sm:text-3xl font-normal tracking-tight text-[#151413]">
+          <h2 className="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-[#151413]">
             {title}
           </h2>
           {subtitle && (
