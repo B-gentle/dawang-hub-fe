@@ -21,9 +21,9 @@ export default function LoginPage() {
       const response = await authApi.login({ email, password });
 
       if (response.user.role === "admin") {
-        router.push("/admin/dashboard");
+        router.push("/admin");
       } else {
-        router.push("/dashboard");
+        router.push("/account");
       }
     } catch (err: unknown) {
       const message =
@@ -64,7 +64,7 @@ export default function LoginPage() {
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="admin@dawanghub.com"
+              placeholder="admin@dawangstores.com"
               className="w-full mt-1 p-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
             />
           </div>
