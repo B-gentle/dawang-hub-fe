@@ -51,6 +51,14 @@ export interface RevenueOverviewResponse {
   data: RevenueDataPoint[];
 }
 
+export interface TopProductItem {
+  id: string;
+  name: string;
+  category: string;
+  price: number;
+  totalSales: number;
+}
+
 export const adminApi = {
   getDashboardAnalytics: () =>
     fetcher<DashboardAnalyticsResponse>("/admin/analytics/dashboard"),
@@ -59,4 +67,7 @@ export const adminApi = {
     fetcher<RevenueOverviewResponse>(
       `/admin/analytics/revenue-overview?period=${period}`,
     ),
+
+  getTopProducts: (limit = 4) =>
+    fetcher<TopProductItem[]>(`/admin/analytics/top-products?limit=${limit}`),
 };

@@ -17,6 +17,7 @@ import { UserProfile } from "@/lib/api/auth-api";
 import { DashboardKPIs } from "@/lib/api/admin-api";
 import { getTimeGreeting } from "@/lib/utils/date";
 import RevenueOverviewChart from "@/components/admin/RevenueOverviewChart";
+import TopProductsCard from "@/components/admin/TopProductsCard";
 
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
@@ -202,6 +203,8 @@ export default function AdminDashboardPage() {
 
       {/* Revenue Overview Section */}
       <RevenueOverviewChart />
+      {/* Top Products Section */}
+      <TopProductsCard />
     </div>
   );
 }
