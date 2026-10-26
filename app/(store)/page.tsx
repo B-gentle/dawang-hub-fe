@@ -94,14 +94,14 @@ export default function HomePage() {
       <section className="bg-[#FAF9F6] border-y border-[#EAE8E4] py-12 px-4 sm:px-6 text-center">
         <div className="max-w-4xl mx-auto flex flex-col items-center gap-3">
           <span className="text-[10px] font-bold text-[#C4956A] uppercase tracking-[0.25em]">
-            Craftsmanship
+            HANDPICKED FOR YOU
           </span>
           <h3 className="font-heading text-lg sm:text-2xl font-bold text-[#151413] uppercase">
-            Curated Premium Essentials
+            YOUR STYLE, OUR COLLECTION
           </h3>
           <p className="text-xs text-[#76726E] max-w-lg">
-            Every piece in our catalog undergoes rigorous quality control to
-            ensure high durability and exceptional style.
+            From fashion to beauty, find your favourites in one place and
+            express your style with confidence.
           </p>
         </div>
       </section>
