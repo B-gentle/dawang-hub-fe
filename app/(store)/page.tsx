@@ -12,61 +12,73 @@ interface PaginatedResponse<T> {
   products?: T[];
 }
 
+const extractProducts = (
+  res: Product[] | PaginatedResponse<Product>,
+): Product[] => {
+  if (Array.isArray(res)) return res;
+  if (res && Array.isArray(res.items)) return res.items;
+  if (res && Array.isArray(res.data)) return res.data;
+  if (res && Array.isArray(res.products)) return res.products;
+  return [];
+};
+
 export default function HomePage() {
-  const [products, setProducts] = useState<Product[]>([]);
+  const [newArrivals, setNewArrivals] = useState<Product[]>([]);
+  const [popularProducts, setPopularProducts] = useState<Product[]>([]);
+  const [featuredProducts, setFeaturedProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let isMounted = true;
 
-    const fetchProducts = async () => {
+    const fetchHomeSections = async () => {
       try {
         setLoading(true);
-        const res = (await apiClient.getProducts()) as
-          Product[] | PaginatedResponse<Product>;
+
+        // Fetch all 3 sections concurrently from the server with explicit DESC sorting
+        const [newArrivalsRes, popularRes, featuredRes] = await Promise.all([
+          apiClient.getProducts({
+            limit: 10,
+            sortBy: "createdAt",
+            sortOrder: "DESC",
+          }) as Promise<Product[] | PaginatedResponse<Product>>,
+
+          apiClient.getProducts({
+            limit: 8,
+            isPopular: true,
+            sortBy: "createdAt",
+            sortOrder: "DESC",
+          }) as Promise<Product[] | PaginatedResponse<Product>>,
+
+          apiClient.getProducts({
+            limit: 8,
+            isFeatured: true,
+            sortBy: "createdAt",
+            sortOrder: "DESC",
+          }) as Promise<Product[] | PaginatedResponse<Product>>,
+        ]);
 
         if (!isMounted) return;
 
-        let extracted: Product[] = [];
-        if (Array.isArray(res)) {
-          extracted = res;
-        } else if (res && Array.isArray(res.items)) {
-          extracted = res.items;
-        } else if (res && Array.isArray(res.data)) {
-          extracted = res.data;
-        } else if (res && Array.isArray(res.products)) {
-          extracted = res.products;
-        }
-
-        setProducts(extracted);
+        setNewArrivals(extractProducts(newArrivalsRes));
+        setPopularProducts(extractProducts(popularRes));
+        setFeaturedProducts(extractProducts(featuredRes));
       } catch (err) {
-        console.error("Failed to load storefront products:", err);
+        console.error("Failed to load home page collections:", err);
       } finally {
         if (isMounted) setLoading(false);
       }
     };
 
-    fetchProducts();
+    fetchHomeSections();
 
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // Deriving catalog collections
-  const newArrivals = [...products]
-    .sort(
-      (a, b) =>
-        new Date(b.createdAt || 0).getTime() -
-        new Date(a.createdAt || 0).getTime(),
-    )
-    .slice(0, 10);
-
-  const popularProducts = products.filter((p) => p.isPopular);
-  const featuredProducts = products.filter((p) => p.isFeatured);
-
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-white font-sans text-[#151413]">
       <Hero videoId="t1Nbqpse8kc" />
 
       {/* 1. New Arrivals Section */}
@@ -98,9 +110,7 @@ export default function HomePage() {
       <ProductGrid
         title="Popular Right Now"
         subtitle="Trending styles favored by our customers"
-        products={
-          popularProducts.length > 0 ? popularProducts : products.slice(0, 4)
-        }
+        products={popularProducts}
         loading={loading}
         viewAllHref="/shop"
       />
@@ -109,9 +119,7 @@ export default function HomePage() {
       <ProductGrid
         title="Featured Selection"
         subtitle="Handpicked collection highlights"
-        products={
-          featuredProducts.length > 0 ? featuredProducts : products.slice(0, 4)
-        }
+        products={featuredProducts}
         loading={loading}
         viewAllHref="/shop"
       />
