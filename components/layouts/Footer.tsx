@@ -120,7 +120,7 @@ const Footer = () => {
             </li>
             <li>
               <Link
-                href="/faqs"
+                href="/help"
                 className="hover:text-foreground transition-colors duration-200"
               >
                 FAQs
@@ -128,10 +128,10 @@ const Footer = () => {
             </li>
             <li>
               <Link
-                href="/size-guide"
+                href="/help"
                 className="hover:text-foreground transition-colors duration-200"
               >
-                Size guide
+                Help Center
               </Link>
             </li>
           </ul>
