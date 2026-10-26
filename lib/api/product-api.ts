@@ -27,6 +27,8 @@ export interface ProductQueryParams {
   maxPrice?: number;
   isPopular?: boolean;
   isFeatured?: boolean;
+  sortBy?: "createdAt" | "name" | "price" | "stockQuantity";
+  sortOrder?: "ASC" | "DESC";
 }
 
 export const productApi = {
@@ -52,6 +54,8 @@ export const productApi = {
         searchParams.set("isPopular", params.isPopular.toString());
       if (params.isFeatured !== undefined)
         searchParams.set("isFeatured", params.isFeatured.toString());
+      if (params.sortBy) searchParams.set("sortBy", params.sortBy);
+      if (params.sortOrder) searchParams.set("sortOrder", params.sortOrder);
 
       const str = searchParams.toString();
       queryString = str ? `?${str}` : "";

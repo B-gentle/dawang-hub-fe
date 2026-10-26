@@ -13,6 +13,10 @@ import {
   LuSearch,
   LuX,
   LuFilter,
+  LuArrowUp,
+  LuArrowDown,
+  LuStar,
+  LuFlame,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -39,14 +43,25 @@ export default function AdminProductsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Pagination & Filter States
+  // Pagination States
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize] = useState(10);
   const [totalPages, setTotalPages] = useState(1);
   const [totalItems, setTotalItems] = useState(0);
 
+  // Filter & Sorting States
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategoryId, setSelectedCategoryId] = useState("");
+  const [filterFeatured, setFilterFeatured] = useState<boolean | undefined>(
+    undefined,
+  );
+  const [filterPopular, setFilterPopular] = useState<boolean | undefined>(
+    undefined,
+  );
+  const [sortBy, setSortBy] = useState<
+    "createdAt" | "name" | "price" | "stockQuantity"
+  >("createdAt");
+  const [sortOrder, setSortOrder] = useState<"ASC" | "DESC">("DESC");
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
@@ -78,6 +93,10 @@ export default function AdminProductsPage() {
           limit: pageSize,
           search: searchQuery.trim() || undefined,
           categoryId: selectedCategoryId || undefined,
+          isFeatured: filterFeatured,
+          isPopular: filterPopular,
+          sortBy,
+          sortOrder,
         }) as Promise<PaginatedResponse<Product> | Product[]>,
         apiClient.getCategories().catch(() => []) as Promise<
           Category[] | PaginatedResponse<Category>
@@ -140,7 +159,15 @@ export default function AdminProductsPage() {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, searchQuery, selectedCategoryId]);
+  }, [
+    currentPage,
+    searchQuery,
+    selectedCategoryId,
+    filterFeatured,
+    filterPopular,
+    sortBy,
+    sortOrder,
+  ]);
 
   const openAddModal = () => {
     setEditingProduct(null);
@@ -326,52 +353,150 @@ export default function AdminProductsPage() {
         </button>
       </div>
 
-      {/* Backend Filter Controls Bar */}
-      <div className="bg-white p-4 rounded-lg border border-[#EAE8E4] flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 shadow-xs">
-        {/* Search */}
-        <div className="relative flex-1 max-w-md">
-          <LuSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
-          <input
-            type="text"
-            placeholder="Search by product name or SKU..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value);
+      {/* Controls Bar: Search, Category, Sorting, isFeatured & isPopular */}
+      <div className="bg-white p-4 rounded-lg border border-[#EAE8E4] flex flex-col gap-4 shadow-xs">
+        <div className="flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-3">
+          {/* Search Input */}
+          <div className="relative flex-1">
+            <LuSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
+            <input
+              type="text"
+              placeholder="Search by product name, description or SKU..."
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="w-full pl-9 pr-8 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#1A1A1A] focus:outline-hidden focus:border-[#C4956A] placeholder-[#A39E98]"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery("");
+                  setCurrentPage(1);
+                }}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-[#76726E] hover:text-[#1A1A1A]"
+              >
+                <LuX className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+
+          {/* Controls: Category, Sort By, ASC/DESC Toggle */}
+          <div className="flex flex-wrap items-center gap-2.5">
+            {/* Category Filter Dropdown */}
+            <div className="flex items-center gap-1.5 bg-[#FAF9F6] px-2.5 py-1.5 border border-[#EAE8E4] rounded-md">
+              <LuFilter className="w-3.5 h-3.5 text-[#C4956A] shrink-0" />
+              <select
+                value={selectedCategoryId}
+                onChange={(e) => {
+                  setSelectedCategoryId(e.target.value);
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs font-semibold text-[#1A1A1A] focus:outline-hidden cursor-pointer"
+              >
+                <option value="">All Categories</option>
+                {categories.map((cat) => (
+                  <option key={cat.id} value={cat.id}>
+                    {cat.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Sort Field Selector */}
+            <div className="flex items-center gap-1.5 bg-[#FAF9F6] px-2.5 py-1.5 border border-[#EAE8E4] rounded-md">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-[#76726E]">
+                Sort:
+              </span>
+              <select
+                value={sortBy}
+                onChange={(e) => {
+                  setSortBy(
+                    e.target.value as
+                      "createdAt" | "name" | "price" | "stockQuantity",
+                  );
+                  setCurrentPage(1);
+                }}
+                className="bg-transparent text-xs font-semibold text-[#1A1A1A] focus:outline-hidden cursor-pointer"
+              >
+                <option value="createdAt">Date Created</option>
+                <option value="name">Name</option>
+                <option value="price">Price</option>
+                <option value="stockQuantity">Stock Quantity</option>
+              </select>
+            </div>
+
+            {/* Sort Direction Toggle Button */}
+            <button
+              onClick={() => {
+                setSortOrder((prev) => (prev === "ASC" ? "DESC" : "ASC"));
+                setCurrentPage(1);
+              }}
+              title={`Switch to ${sortOrder === "ASC" ? "Descending" : "Ascending"}`}
+              className="p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[#1A1A1A] hover:border-[#C4956A] transition-colors cursor-pointer flex items-center justify-center"
+            >
+              {sortOrder === "ASC" ? (
+                <LuArrowUp className="w-3.5 h-3.5 text-[#C4956A]" />
+              ) : (
+                <LuArrowDown className="w-3.5 h-3.5 text-[#C4956A]" />
+              )}
+            </button>
+          </div>
+        </div>
+
+        {/* Quick Filter Toggle Pills: Featured & Popular */}
+        <div className="flex items-center gap-2 pt-2 border-t border-[#EAE8E4]">
+          <span className="text-[10px] font-bold uppercase tracking-wider text-[#76726E]">
+            Tags:
+          </span>
+          <button
+            onClick={() => {
+              setFilterFeatured((prev) => (prev === true ? undefined : true));
               setCurrentPage(1);
             }}
-            className="w-full pl-9 pr-8 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#1A1A1A] focus:outline-hidden focus:border-[#C4956A] placeholder-[#A39E98]"
-          />
-          {searchQuery && (
+            className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              filterFeatured === true
+                ? "bg-[#171514] text-white"
+                : "bg-[#FAF9F6] border border-[#EAE8E4] text-[#76726E] hover:text-[#1A1A1A]"
+            }`}
+          >
+            <LuStar className="w-3 h-3 text-[#C4956A]" /> Featured Only
+          </button>
+
+          <button
+            onClick={() => {
+              setFilterPopular((prev) => (prev === true ? undefined : true));
+              setCurrentPage(1);
+            }}
+            className={`px-3 py-1 rounded-full text-[11px] font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
+              filterPopular === true
+                ? "bg-[#171514] text-white"
+                : "bg-[#FAF9F6] border border-[#EAE8E4] text-[#76726E] hover:text-[#1A1A1A]"
+            }`}
+          >
+            <LuFlame className="w-3 h-3 text-amber-500" /> Popular Only
+          </button>
+
+          {(filterFeatured !== undefined ||
+            filterPopular !== undefined ||
+            searchQuery ||
+            selectedCategoryId) && (
             <button
               onClick={() => {
                 setSearchQuery("");
+                setSelectedCategoryId("");
+                setFilterFeatured(undefined);
+                setFilterPopular(undefined);
+                setSortBy("createdAt");
+                setSortOrder("DESC");
                 setCurrentPage(1);
               }}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-[#76726E] hover:text-[#1A1A1A]"
+              className="ml-auto text-[10px] font-bold text-rose-600 hover:underline uppercase tracking-wider cursor-pointer"
             >
-              <LuX className="w-3.5 h-3.5" />
+              Reset All Filters
             </button>
           )}
-        </div>
-
-        {/* Category Filter Dropdown */}
-        <div className="flex items-center gap-2">
-          <LuFilter className="w-4 h-4 text-[#C4956A] shrink-0" />
-          <select
-            value={selectedCategoryId}
-            onChange={(e) => {
-              setSelectedCategoryId(e.target.value);
-              setCurrentPage(1);
-            }}
-            className="p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs font-semibold text-[#1A1A1A] focus:outline-hidden focus:border-[#C4956A] cursor-pointer"
-          >
-            <option value="">All Categories</option>
-            {categories.map((cat) => (
-              <option key={cat.id} value={cat.id}>
-                {cat.name}
-              </option>
-            ))}
-          </select>
         </div>
       </div>
 
@@ -397,12 +522,14 @@ export default function AdminProductsPage() {
           <div className="p-12 text-center flex flex-col items-center gap-3">
             <LuImage className="w-8 h-8 text-[#A39E98]" />
             <p className="text-xs text-[#76726E]">
-              No products found for this filter.
+              No products found for this filter combination.
             </p>
             <button
               onClick={() => {
                 setSearchQuery("");
                 setSelectedCategoryId("");
+                setFilterFeatured(undefined);
+                setFilterPopular(undefined);
                 setCurrentPage(1);
               }}
               className="text-xs font-bold text-[#C4956A] underline uppercase tracking-wider"
@@ -420,6 +547,7 @@ export default function AdminProductsPage() {
                     <th className="py-3 px-4">Category</th>
                     <th className="py-3 px-4">SKU</th>
                     <th className="py-3 px-4">Price</th>
+                    <th className="py-3 px-4">Tags</th>
                     <th className="py-3 px-4">Stock</th>
                     <th className="py-3 px-4 text-right">Actions</th>
                   </tr>
@@ -460,6 +588,20 @@ export default function AdminProductsPage() {
                             ₦{Number(product.discountPrice).toLocaleString()}
                           </span>
                         ) : null}
+                      </td>
+                      <td className="py-3 px-4">
+                        <div className="flex gap-1">
+                          {product.isFeatured && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-[#FAF5EF] text-[#C4956A] border border-[#EAE8E4]">
+                              Featured
+                            </span>
+                          )}
+                          {product.isPopular && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                              Popular
+                            </span>
+                          )}
+                        </div>
                       </td>
                       <td className="py-3 px-4">
                         <span
