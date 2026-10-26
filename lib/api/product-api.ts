@@ -110,4 +110,10 @@ export const productApi = {
 
     return { url };
   },
+
+  removeProductImage: (productId: string, imageUrl: string) =>
+    fetcher<Product>(`/products/${productId}/images`, {
+      method: "DELETE",
+      body: JSON.stringify({ imageUrl }),
+    }),
 };
