@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, Suspense } from "react";
+import { useState, useEffect, Suspense } from "react";
 import { useSearchParams } from "next/navigation";
 import {
   FiFilter,
@@ -9,6 +9,8 @@ import {
   FiRefreshCw,
   FiPackage,
   FiSliders,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 import { apiClient } from "@/lib/api-client";
 import { Product } from "@/types/product";
@@ -19,6 +21,13 @@ interface PaginatedResponse<T> {
   items?: T[];
   data?: T[];
   products?: T[];
+  meta?: {
+    totalItems: number;
+    itemCount: number;
+    itemsPerPage: number;
+    totalPages: number;
+    currentPage: number;
+  };
 }
 
 function ShopContent() {
@@ -30,6 +39,12 @@ function ShopContent() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
+  // Pagination States (30 items per page)
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 30;
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
+
   // Filter & Sort States
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [searchQuery, setSearchQuery] = useState<string>("");
@@ -38,7 +53,7 @@ function ShopContent() {
   >("newest");
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
 
-  // Set initial search query from URL parameter if provided
+  // Sync search query from URL parameter
   useEffect(() => {
     if (queryParam) {
       queueMicrotask(() => {
@@ -47,7 +62,43 @@ function ShopContent() {
     }
   }, [queryParam]);
 
-  // Load Catalog Data
+  // Sync category selection from URL param
+  useEffect(() => {
+    if (!categoryParam || categories.length === 0) return;
+
+    const target = categoryParam.toLowerCase().trim();
+    const matchedCategory = categories.find((cat) => {
+      const catIdMatches = cat.id.toLowerCase() === target;
+      const catNameMatches = cat.name.toLowerCase().includes(target);
+      const catSlugMatches = cat.slug?.toLowerCase() === target;
+      return catIdMatches || catNameMatches || catSlugMatches;
+    });
+
+    queueMicrotask(() => {
+      if (matchedCategory) {
+        setSelectedCategory(matchedCategory.id);
+      } else {
+        setSelectedCategory(target);
+      }
+    });
+  }, [categoryParam, categories]);
+
+  // Map shop sort option to backend parameters
+  const getSortParams = () => {
+    switch (sortBy) {
+      case "price-asc":
+        return { sortBy: "price" as const, sortOrder: "ASC" as const };
+      case "price-desc":
+        return { sortBy: "price" as const, sortOrder: "DESC" as const };
+      case "name":
+        return { sortBy: "name" as const, sortOrder: "ASC" as const };
+      case "newest":
+      default:
+        return { sortBy: "createdAt" as const, sortOrder: "DESC" as const };
+    }
+  };
+
+  // Load catalog data from server with filters & 30-item limit
   useEffect(() => {
     let isMounted = true;
 
@@ -55,10 +106,18 @@ function ShopContent() {
       try {
         setLoading(true);
 
+        const { sortBy: sortField, sortOrder } = getSortParams();
+
         const [productsRes, categoriesRes] = await Promise.all([
-          apiClient.getProducts() as Promise<
-            Product[] | PaginatedResponse<Product>
-          >,
+          apiClient.getProducts({
+            page: currentPage,
+            limit: pageSize,
+            search: searchQuery.trim() || undefined,
+            categoryId:
+              selectedCategory !== "all" ? selectedCategory : undefined,
+            sortBy: sortField,
+            sortOrder: sortOrder,
+          }) as Promise<Product[] | PaginatedResponse<Product>>,
           apiClient.getCategories().catch(() => []) as Promise<
             Category[] | PaginatedResponse<Category>
           >,
@@ -66,16 +125,28 @@ function ShopContent() {
 
         if (!isMounted) return;
 
-        // Extract products
+        // Extract products and metadata
         let extractedProducts: Product[] = [];
         if (Array.isArray(productsRes)) {
           extractedProducts = productsRes;
-        } else if (productsRes && Array.isArray(productsRes.items)) {
-          extractedProducts = productsRes.items;
-        } else if (productsRes && Array.isArray(productsRes.data)) {
-          extractedProducts = productsRes.data;
-        } else if (productsRes && Array.isArray(productsRes.products)) {
-          extractedProducts = productsRes.products;
+          setTotalItems(productsRes.length);
+          setTotalPages(1);
+        } else if (productsRes && typeof productsRes === "object") {
+          if (Array.isArray(productsRes.items)) {
+            extractedProducts = productsRes.items;
+          } else if (Array.isArray(productsRes.data)) {
+            extractedProducts = productsRes.data;
+          } else if (Array.isArray(productsRes.products)) {
+            extractedProducts = productsRes.products;
+          }
+
+          if (productsRes.meta) {
+            setTotalItems(productsRes.meta.totalItems);
+            setTotalPages(productsRes.meta.totalPages || 1);
+          } else {
+            setTotalItems(extractedProducts.length);
+            setTotalPages(1);
+          }
         }
 
         // Extract categories
@@ -100,93 +171,12 @@ function ShopContent() {
     return () => {
       isMounted = false;
     };
-  }, []);
-
-  // Synchronize category selection from URL param (e.g., ?category=clothes)
-  useEffect(() => {
-    if (!categoryParam || categories.length === 0) return;
-
-    const target = categoryParam.toLowerCase().trim();
-    const matchedCategory = categories.find((cat) => {
-      const catIdMatches = cat.id.toLowerCase() === target;
-      const catNameMatches = cat.name.toLowerCase().includes(target);
-      const catSlugMatches = cat.slug?.toLowerCase() === target;
-      return catIdMatches || catNameMatches || catSlugMatches;
-    });
-
-    queueMicrotask(() => {
-      if (matchedCategory) {
-        setSelectedCategory(matchedCategory.id);
-      } else {
-        setSelectedCategory(target);
-      }
-    });
-  }, [categoryParam, categories]);
-
-  // Filter & Sort Pipeline
-  const filteredProducts = useMemo(() => {
-    return products
-      .filter((product) => {
-        // Category Filter
-        if (selectedCategory !== "all") {
-          const target = selectedCategory.toLowerCase();
-
-          const catIdMatches = product.categoryId === selectedCategory;
-          const nestedCatIdMatches =
-            typeof product.category === "object" &&
-            product.category?.id === selectedCategory;
-
-          const categoryName = (
-            typeof product.category === "object" ? product.category?.name : ""
-          )?.toLowerCase();
-
-          const nameMatches = categoryName && categoryName.includes(target);
-
-          if (!catIdMatches && !nestedCatIdMatches && !nameMatches) {
-            return false;
-          }
-        }
-
-        // Search Query Filter
-        if (searchQuery.trim() !== "") {
-          const query = searchQuery.toLowerCase();
-          const nameMatches = product.name.toLowerCase().includes(query);
-          const descMatches = product.description
-            ?.toLowerCase()
-            .includes(query);
-          const skuMatches = product.sku?.toLowerCase().includes(query);
-          if (!nameMatches && !descMatches && !skuMatches) return false;
-        }
-
-        return true;
-      })
-      .sort((a, b) => {
-        if (sortBy === "newest") {
-          return (
-            new Date(b.createdAt || 0).getTime() -
-            new Date(a.createdAt || 0).getTime()
-          );
-        }
-        if (sortBy === "price-asc") {
-          const priceA = a.discountPrice || a.price;
-          const priceB = b.discountPrice || b.price;
-          return priceA - priceB;
-        }
-        if (sortBy === "price-desc") {
-          const priceA = a.discountPrice || a.price;
-          const priceB = b.discountPrice || b.price;
-          return priceB - priceA;
-        }
-        if (sortBy === "name") {
-          return a.name.localeCompare(b.name);
-        }
-        return 0;
-      });
-  }, [products, selectedCategory, searchQuery, sortBy]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPage, selectedCategory, searchQuery, sortBy]);
 
   return (
     <div className="min-h-screen bg-white font-sans overflow-x-hidden">
-      {/* Page Header */}
+      {/* Header */}
       <div className="bg-[#FAF9F6] border-b border-[#EAE8E4] py-6 sm:py-12 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col items-center text-center gap-1.5">
           <span className="text-[10px] font-bold text-[#C4956A] uppercase tracking-[0.25em]">
@@ -202,9 +192,8 @@ function ShopContent() {
         </div>
       </div>
 
-      {/* Main Container */}
       <div className="w-full max-w-7xl mx-auto px-4 sm:px-8 py-6 sm:py-12">
-        {/* Top Controls Bar */}
+        {/* Controls Bar */}
         <div className="flex flex-col gap-4 mb-6 pb-4 border-b border-[#EAE8E4]">
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
             {/* Search Input */}
@@ -214,12 +203,18 @@ function ShopContent() {
                 type="text"
                 placeholder="Search catalog..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setCurrentPage(1);
+                }}
                 className="w-full pl-9 pr-8 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A] placeholder-[#A39E98]"
               />
               {searchQuery && (
                 <button
-                  onClick={() => setSearchQuery("")}
+                  onClick={() => {
+                    setSearchQuery("");
+                    setCurrentPage(1);
+                  }}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-[#76726E] hover:text-[#151413]"
                 >
                   <FiX className="w-3.5 h-3.5" />
@@ -227,7 +222,6 @@ function ShopContent() {
               )}
             </div>
 
-            {/* Mobile Filter & Sort Controls */}
             <div className="flex items-center justify-between sm:justify-end gap-3 w-full sm:w-auto">
               <button
                 onClick={() => setIsMobileFilterOpen(true)}
@@ -242,13 +236,14 @@ function ShopContent() {
                 </label>
                 <select
                   value={sortBy}
-                  onChange={(e) =>
+                  onChange={(e) => {
                     setSortBy(
                       e.target.value as
                         "newest" | "price-asc" | "price-desc" | "name",
-                    )
-                  }
-                  className="w-full sm:w-auto p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413] font-semibold focus:outline-hidden focus:border-[#C4956A]"
+                    );
+                    setCurrentPage(1);
+                  }}
+                  className="w-full sm:w-auto p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413] font-semibold focus:outline-hidden focus:border-[#C4956A] cursor-pointer"
                 >
                   <option value="newest">Newest First</option>
                   <option value="price-asc">Price: Low to High</option>
@@ -259,24 +254,30 @@ function ShopContent() {
             </div>
           </div>
 
-          {/* Horizontally Scrollable Category Pills on Mobile */}
+          {/* Mobile Category Scroll */}
           <div className="flex md:hidden overflow-x-auto gap-2 pt-1 pb-1 text-xs no-scrollbar">
             <button
-              onClick={() => setSelectedCategory("all")}
+              onClick={() => {
+                setSelectedCategory("all");
+                setCurrentPage(1);
+              }}
               className={`px-3 py-1.5 rounded-full whitespace-nowrap font-bold uppercase tracking-wider transition-colors cursor-pointer text-[10px] shrink-0 ${
                 selectedCategory === "all"
                   ? "bg-[#151413] text-white"
                   : "bg-[#FAF9F6] text-[#76726E] border border-[#EAE8E4]"
               }`}
             >
-              All ({products.length})
+              All
             </button>
             {categories.map((cat) => {
               const isActive = selectedCategory === cat.id;
               return (
                 <button
                   key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
+                  onClick={() => {
+                    setSelectedCategory(cat.id);
+                    setCurrentPage(1);
+                  }}
                   className={`px-3 py-1.5 rounded-full whitespace-nowrap font-bold uppercase tracking-wider transition-colors cursor-pointer text-[10px] shrink-0 ${
                     isActive
                       ? "bg-[#151413] text-white"
@@ -290,7 +291,6 @@ function ShopContent() {
           </div>
         </div>
 
-        {/* Responsive Grid & Desktop Sidebar */}
         <div className="flex flex-col md:flex-row gap-6 lg:gap-8">
           {/* Desktop Category Sidebar */}
           <aside className="hidden md:flex flex-col w-52 shrink-0 gap-6">
@@ -301,55 +301,48 @@ function ShopContent() {
               <ul className="flex flex-col gap-1.5 text-xs">
                 <li>
                   <button
-                    onClick={() => setSelectedCategory("all")}
+                    onClick={() => {
+                      setSelectedCategory("all");
+                      setCurrentPage(1);
+                    }}
                     className={`w-full text-left py-1.5 px-2.5 rounded-md transition-colors font-medium cursor-pointer ${
                       selectedCategory === "all"
                         ? "bg-[#151413] text-white font-bold"
                         : "text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6]"
                     }`}
                   >
-                    All Categories ({products.length})
+                    All Categories
                   </button>
                 </li>
-                {categories.map((cat) => {
-                  const count = products.filter((p) => {
-                    const idMatches = p.categoryId === cat.id;
-                    const nestedIdMatches =
-                      typeof p.category === "object" &&
-                      p.category?.id === cat.id;
-                    return idMatches || nestedIdMatches;
-                  }).length;
-
-                  return (
-                    <li key={cat.id}>
-                      <button
-                        onClick={() => setSelectedCategory(cat.id)}
-                        className={`w-full text-left py-1.5 px-2.5 rounded-md transition-colors font-medium cursor-pointer flex justify-between items-center ${
-                          selectedCategory === cat.id
-                            ? "bg-[#151413] text-white font-bold"
-                            : "text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6]"
-                        }`}
-                      >
-                        <span>{cat.name}</span>
-                        <span className="text-[10px] opacity-75">
-                          ({count})
-                        </span>
-                      </button>
-                    </li>
-                  );
-                })}
+                {categories.map((cat) => (
+                  <li key={cat.id}>
+                    <button
+                      onClick={() => {
+                        setSelectedCategory(cat.id);
+                        setCurrentPage(1);
+                      }}
+                      className={`w-full text-left py-1.5 px-2.5 rounded-md transition-colors font-medium cursor-pointer flex justify-between items-center ${
+                        selectedCategory === cat.id
+                          ? "bg-[#151413] text-white font-bold"
+                          : "text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6]"
+                      }`}
+                    >
+                      <span>{cat.name}</span>
+                    </button>
+                  </li>
+                ))}
               </ul>
             </div>
           </aside>
 
-          {/* Main Catalog Grid */}
+          {/* Main Content Area */}
           <main className="flex-1 min-w-0">
             {loading ? (
               <div className="py-20 flex flex-col items-center justify-center gap-2 text-xs text-[#76726E]">
                 <FiRefreshCw className="w-5 h-5 animate-spin text-[#C4956A]" />
                 Loading catalog...
               </div>
-            ) : filteredProducts.length === 0 ? (
+            ) : products.length === 0 ? (
               <div className="py-20 bg-[#FAF9F6] rounded-lg border border-[#EAE8E4] flex flex-col items-center justify-center gap-3 text-center p-6">
                 <FiPackage className="w-8 h-8 text-[#A39E98]" />
                 <p className="text-xs font-semibold text-[#151413]">
@@ -362,6 +355,7 @@ function ShopContent() {
                   onClick={() => {
                     setSelectedCategory("all");
                     setSearchQuery("");
+                    setCurrentPage(1);
                   }}
                   className="mt-2 px-4 py-2 bg-[#151413] text-white text-[10px] font-bold uppercase tracking-wider rounded-md hover:bg-[#2A2725] cursor-pointer"
                 >
@@ -369,17 +363,55 @@ function ShopContent() {
                 </button>
               </div>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-5 w-full">
-                {filteredProducts.map((product) => (
-                  <ProductCard key={product.id} product={product} />
-                ))}
+              <div className="flex flex-col gap-8">
+                {/* Product Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-3 xl:grid-cols-4 gap-3 sm:gap-4 md:gap-5 w-full">
+                  {products.map((product) => (
+                    <ProductCard key={product.id} product={product} />
+                  ))}
+                </div>
+
+                {/* Pagination Controls Footer */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between border-t border-[#EAE8E4] pt-6 text-xs text-[#76726E]">
+                    <span>
+                      Showing Page{" "}
+                      <strong className="text-[#151413]">{currentPage}</strong>{" "}
+                      of{" "}
+                      <strong className="text-[#151413]">{totalPages}</strong> (
+                      {totalItems} Products)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        disabled={currentPage === 1}
+                        onClick={() => {
+                          setCurrentPage((p) => Math.max(1, p - 1));
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        className="px-3 py-1.5 border border-[#EAE8E4] bg-[#FAF9F6] rounded-md font-bold text-[#151413] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
+                      >
+                        <FiChevronLeft className="w-4 h-4" /> Previous
+                      </button>
+                      <button
+                        disabled={currentPage >= totalPages}
+                        onClick={() => {
+                          setCurrentPage((p) => p + 1);
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        className="px-3 py-1.5 border border-[#EAE8E4] bg-[#FAF9F6] rounded-md font-bold text-[#151413] disabled:opacity-40 cursor-pointer disabled:cursor-not-allowed flex items-center gap-1"
+                      >
+                        Next <FiChevronRight className="w-4 h-4" />
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
           </main>
         </div>
       </div>
 
-      {/* Slide-out Drawer for Mobile Filters */}
+      {/* Mobile Drawer */}
       {isMobileFilterOpen && (
         <div className="fixed inset-0 z-50 flex md:hidden">
           <div
@@ -405,6 +437,7 @@ function ShopContent() {
                 <button
                   onClick={() => {
                     setSelectedCategory("all");
+                    setCurrentPage(1);
                     setIsMobileFilterOpen(false);
                   }}
                   className={`w-full text-left py-2.5 px-3 rounded-md transition-colors text-xs font-semibold ${
@@ -413,13 +446,14 @@ function ShopContent() {
                       : "text-[#76726E] hover:bg-[#FAF9F6]"
                   }`}
                 >
-                  All Categories ({products.length})
+                  All Categories
                 </button>
                 {categories.map((cat) => (
                   <button
                     key={cat.id}
                     onClick={() => {
                       setSelectedCategory(cat.id);
+                      setCurrentPage(1);
                       setIsMobileFilterOpen(false);
                     }}
                     className={`w-full text-left py-2.5 px-3 rounded-md transition-colors text-xs font-semibold ${
@@ -438,6 +472,7 @@ function ShopContent() {
               onClick={() => {
                 setSelectedCategory("all");
                 setSearchQuery("");
+                setCurrentPage(1);
                 setIsMobileFilterOpen(false);
               }}
               className="mt-6 w-full py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] text-[#151413] text-xs font-bold uppercase tracking-wider rounded-md cursor-pointer"

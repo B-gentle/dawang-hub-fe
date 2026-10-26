@@ -21,7 +21,7 @@ export default function Hero({
   primaryCtaText = "Explore Catalog",
   primaryCtaHref = "/shop",
   secondaryCtaText = "View Clothing",
-  secondaryCtaHref = "/clothes",
+  secondaryCtaHref = "/shop?category=clothes",
 }: HeroProps) {
   return (
     <section className="relative w-full h-[80vh] min-h-[500px] max-h-[800px] bg-[#151413] text-white overflow-hidden flex items-center justify-center">
