@@ -6,6 +6,7 @@ import { ordersApi } from "./api/orders-api";
 import { usersApi } from "./api/users-api";
 import { adminApi } from "./api/admin-api";
 import { analyticsApi } from "./api/analytics-api";
+import { settingsApi } from "./api/settings-api";
 
 export * from "./api/fetcher";
 export {
@@ -17,6 +18,7 @@ export {
   usersApi,
   adminApi,
   analyticsApi,
+  settingsApi,
 };
 
 export const apiClient = {
@@ -28,4 +30,5 @@ export const apiClient = {
   ...usersApi,
   ...adminApi,
   ...analyticsApi,
+  ...settingsApi,
 };
