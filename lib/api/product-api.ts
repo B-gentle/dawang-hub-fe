@@ -18,9 +18,49 @@ export interface CreateReviewInput {
   comment: string;
 }
 
+export interface ProductQueryParams {
+  page?: number;
+  limit?: number;
+  search?: string;
+  categoryId?: string;
+  minPrice?: number;
+  maxPrice?: number;
+  isPopular?: boolean;
+  isFeatured?: boolean;
+}
+
 export const productApi = {
-  getProducts: (query?: string) =>
-    fetcher<Product[]>(`/products${query ? `?${query}` : ""}`),
+  getProducts: (params?: ProductQueryParams | string) => {
+    let queryString = "";
+
+    if (typeof params === "string") {
+      queryString = params ? `?${params}` : "";
+    } else if (params && typeof params === "object") {
+      const searchParams = new URLSearchParams();
+
+      if (params.page !== undefined)
+        searchParams.set("page", params.page.toString());
+      if (params.limit !== undefined)
+        searchParams.set("limit", params.limit.toString());
+      if (params.search) searchParams.set("search", params.search);
+      if (params.categoryId) searchParams.set("categoryId", params.categoryId);
+      if (params.minPrice !== undefined)
+        searchParams.set("minPrice", params.minPrice.toString());
+      if (params.maxPrice !== undefined)
+        searchParams.set("maxPrice", params.maxPrice.toString());
+      if (params.isPopular !== undefined)
+        searchParams.set("isPopular", params.isPopular.toString());
+      if (params.isFeatured !== undefined)
+        searchParams.set("isFeatured", params.isFeatured.toString());
+
+      const str = searchParams.toString();
+      queryString = str ? `?${str}` : "";
+    }
+
+    return fetcher<Product[] | { items: Product[]; meta: unknown }>(
+      `/products${queryString}`,
+    );
+  },
 
   getProductById: (id: string) => fetcher<Product>(`/products/${id}`),
 
