@@ -9,9 +9,16 @@ import { Avatar } from "@/components/ui/Avatar";
 interface AdminHeaderProps {
   onMenuClick?: () => void;
   user?: UserProfile | null;
+  unreadCount?: number;
+  onNotificationClick?: () => void;
 }
 
-export function AdminHeader({ onMenuClick, user }: AdminHeaderProps) {
+export function AdminHeader({
+  onMenuClick,
+  user,
+  unreadCount = 0,
+  onNotificationClick,
+}: AdminHeaderProps) {
   const [currentDateString, setCurrentDateString] = useState<string>("");
   const [greeting, setGreeting] = useState<string>("Good day");
 
@@ -58,13 +65,19 @@ export function AdminHeader({ onMenuClick, user }: AdminHeaderProps) {
           />
         </div>
 
-        {/* Notifications */}
-        <button className="relative p-1.5 text-[#76726E] hover:text-[#1A1A1A] transition-colors cursor-pointer">
+        {/* Notifications Button */}
+        <button
+          onClick={onNotificationClick}
+          className="relative p-1.5 text-[#76726E] hover:text-[#1A1A1A] transition-colors cursor-pointer"
+          aria-label="View notifications"
+        >
           <LuBell className="w-5 h-5" />
-          <span className="absolute top-1 right-1 w-2 h-2 bg-[#C4956A] rounded-full" />
+          {unreadCount > 0 && (
+            <span className="absolute top-1 right-1 w-2.5 h-2.5 bg-[#C4956A] rounded-full ring-2 ring-white" />
+          )}
         </button>
 
-        {/* Dynamic User Avatar Component */}
+        {/* Dynamic User Avatar */}
         <Avatar firstName={user?.firstName} lastName={user?.lastName} />
       </div>
     </header>
