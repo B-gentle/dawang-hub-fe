@@ -35,7 +35,6 @@ export default function HomePage() {
       try {
         setLoading(true);
 
-        // Fetch all 3 sections concurrently from the server with explicit DESC sorting
         const [newArrivalsRes, popularRes, featuredRes] = await Promise.all([
           apiClient.getProducts({
             limit: 10,
@@ -81,14 +80,16 @@ export default function HomePage() {
     <div className="flex flex-col min-h-screen bg-white font-sans text-[#151413]">
       <Hero videoId="t1Nbqpse8kc" />
 
-      {/* 1. New Arrivals Section */}
-      <ProductGrid
-        title="New Arrivals"
-        subtitle="The latest additions to the Dawang catalog"
-        products={newArrivals}
-        loading={loading}
-        viewAllHref="/shop"
-      />
+      {/* 1. New Arrivals Section Anchor */}
+      <section id="new-arrivals" className="scroll-mt-20">
+        <ProductGrid
+          title="New Arrivals"
+          subtitle="The latest additions to the Dawang catalog"
+          products={newArrivals}
+          loading={loading}
+          viewAllHref="/shop"
+        />
+      </section>
 
       {/* Banner Break */}
       <section className="bg-[#FAF9F6] border-y border-[#EAE8E4] py-12 px-4 sm:px-6 text-center">
@@ -106,23 +107,27 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* 2. Popular Products Section */}
-      <ProductGrid
-        title="Popular Right Now"
-        subtitle="Trending styles favored by our customers"
-        products={popularProducts}
-        loading={loading}
-        viewAllHref="/shop"
-      />
+      {/* 2. Popular Products Section Anchor */}
+      <section id="popular-products" className="scroll-mt-20">
+        <ProductGrid
+          title="Popular Right Now"
+          subtitle="Trending styles favored by our customers"
+          products={popularProducts}
+          loading={loading}
+          viewAllHref="/shop"
+        />
+      </section>
 
       {/* 3. Featured Products Section */}
-      <ProductGrid
-        title="Featured Selection"
-        subtitle="Handpicked collection highlights"
-        products={featuredProducts}
-        loading={loading}
-        viewAllHref="/shop"
-      />
+      <section id="featured-products" className="scroll-mt-20">
+        <ProductGrid
+          title="Featured Selection"
+          subtitle="Handpicked collection highlights"
+          products={featuredProducts}
+          loading={loading}
+          viewAllHref="/shop"
+        />
+      </section>
     </div>
   );
 }
