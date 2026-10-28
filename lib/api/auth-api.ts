@@ -61,6 +61,18 @@ export const authApi = {
     return response;
   },
 
+  forgotPassword: (email: string) =>
+    fetcher<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (data: { token: string; password: string }) =>
+    fetcher<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+
   getMe: () => fetcher<UserProfile>("/auth/me"),
 
   logout: () => {
