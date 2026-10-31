@@ -13,11 +13,12 @@ import {
 } from "react-icons/fi";
 import { useCart } from "@/context/CartContext";
 
-export default function CartPage() {
+const CartPage = () => {
   const {
     cart,
     removeFromCart,
     updateQuantity,
+    updateItemOptions,
     subtotal,
     totalItems,
     clearCart,
@@ -28,7 +29,6 @@ export default function CartPage() {
 
   return (
     <div className="min-h-screen bg-white font-sans text-[#151413]">
-      {/* Header */}
       <div className="bg-[#FAF9F6] border-b border-[#EAE8E4] py-8 sm:py-12 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col items-center text-center gap-2">
           <span className="text-[10px] font-bold text-[#C4956A] uppercase tracking-[0.25em]">
@@ -43,7 +43,6 @@ export default function CartPage() {
         </div>
       </div>
 
-      {/* Main Container */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
         {cart.length === 0 ? (
           <div className="py-20 bg-[#FAF9F6] rounded-lg border border-[#EAE8E4] flex flex-col items-center justify-center gap-4 text-center px-4">
@@ -68,7 +67,6 @@ export default function CartPage() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-            {/* Left Column: Itemized Cart Table (8 Columns) */}
             <div className="lg:col-span-8 flex flex-col gap-6">
               <div className="flex justify-between items-center pb-4 border-b border-[#EAE8E4]">
                 <span className="text-xs font-bold uppercase tracking-wider text-[#76726E]">
@@ -92,7 +90,6 @@ export default function CartPage() {
                       className="py-6 flex flex-col sm:flex-row justify-between gap-4 first:pt-0"
                     >
                       <div className="flex gap-4">
-                        {/* Thumbnail */}
                         <div className="relative w-24 h-28 bg-[#FAF9F6] border border-[#EAE8E4] rounded-xs overflow-hidden shrink-0">
                           {item.product.images?.[0] && (
                             <Image
@@ -105,7 +102,6 @@ export default function CartPage() {
                           )}
                         </div>
 
-                        {/* Title & Category */}
                         <div className="flex flex-col justify-between">
                           <div className="flex flex-col gap-1">
                             <span className="text-[10px] font-bold text-[#C4956A] uppercase tracking-wider">
@@ -122,18 +118,74 @@ export default function CartPage() {
                             <span className="text-xs font-bold text-[#151413]">
                               ₦{Number(price).toLocaleString()}
                             </span>
+
+                            {/* Option Pickers inside Cart Page */}
+                            <div className="flex flex-wrap items-center gap-3 mt-1.5 text-[11px] text-[#76726E]">
+                              {item.product.sizes &&
+                                item.product.sizes.length > 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold uppercase text-[10px] text-[#151413]">
+                                      Size:
+                                    </span>
+                                    <select
+                                      value={
+                                        item.selectedSize ||
+                                        item.product.sizes[0]
+                                      }
+                                      onChange={(e) =>
+                                        updateItemOptions?.(item.product.id, {
+                                          selectedSize: e.target.value,
+                                        })
+                                      }
+                                      className="p-1 bg-[#FAF9F6] border border-[#EAE8E4] rounded-xs text-[11px] text-[#151413] focus:outline-hidden cursor-pointer"
+                                    >
+                                      {item.product.sizes.map((size) => (
+                                        <option key={size} value={size}>
+                                          {size}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+
+                              {item.product.colors &&
+                                item.product.colors.length > 0 && (
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold uppercase text-[10px] text-[#151413]">
+                                      Color:
+                                    </span>
+                                    <select
+                                      value={
+                                        item.selectedColor ||
+                                        item.product.colors[0]
+                                      }
+                                      onChange={(e) =>
+                                        updateItemOptions?.(item.product.id, {
+                                          selectedColor: e.target.value,
+                                        })
+                                      }
+                                      className="p-1 bg-[#FAF9F6] border border-[#EAE8E4] rounded-xs text-[11px] text-[#151413] focus:outline-hidden cursor-pointer"
+                                    >
+                                      {item.product.colors.map((color) => (
+                                        <option key={color} value={color}>
+                                          {color}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                )}
+                            </div>
                           </div>
 
                           <button
                             onClick={() => removeFromCart(item.product.id)}
-                            className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer w-fit"
+                            className="text-xs font-bold text-rose-600 hover:text-rose-800 flex items-center gap-1 cursor-pointer w-fit mt-2 sm:mt-0"
                           >
                             <FiTrash2 className="w-3.5 h-3.5" /> Remove
                           </button>
                         </div>
                       </div>
 
-                      {/* Quantity Selector & Item Total */}
                       <div className="flex sm:flex-col items-center sm:items-end justify-between sm:justify-between gap-2 border-t sm:border-t-0 pt-3 sm:pt-0 border-[#FAF9F6]">
                         <div className="flex items-center border border-[#EAE8E4] rounded-md bg-[#FAF9F6] px-2 py-1">
                           <button
@@ -167,7 +219,6 @@ export default function CartPage() {
               </div>
             </div>
 
-            {/* Right Column: Order Summary (4 Columns) */}
             <div className="lg:col-span-4 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md p-6 flex flex-col gap-6">
               <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413] pb-3 border-b border-[#EAE8E4]">
                 Order Summary
@@ -228,4 +279,6 @@ export default function CartPage() {
       </div>
     </div>
   );
-}
+};
+
+export default CartPage;

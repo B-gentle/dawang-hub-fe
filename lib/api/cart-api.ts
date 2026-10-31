@@ -21,17 +21,30 @@ export const cartApi = {
   getCart: () => fetcher<CartApiResponse>("/cart"),
 
   // POST /cart/items
-  addToCart: (productId: string, quantity = 1) =>
+  addToCart: (
+    productId: string,
+    quantity = 1,
+    selectedSize?: string,
+    selectedColor?: string,
+  ) =>
     fetcher<CartApiItem>("/cart/items", {
       method: "POST",
-      body: JSON.stringify({ productId, quantity }),
+      body: JSON.stringify({
+        productId,
+        quantity,
+        selectedSize,
+        selectedColor,
+      }),
     }),
 
   // PATCH /cart/items/{itemId}
-  updateCartItem: (itemId: string, quantity: number) =>
+  updateCartItem: (
+    itemId: string,
+    data: { quantity?: number; selectedSize?: string; selectedColor?: string },
+  ) =>
     fetcher<CartApiItem>(`/cart/items/${itemId}`, {
       method: "PATCH",
-      body: JSON.stringify({ quantity }),
+      body: JSON.stringify(data),
     }),
 
   // DELETE /cart/items/{itemId}

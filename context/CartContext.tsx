@@ -34,6 +34,10 @@ interface CartContextType {
   ) => void;
   removeFromCart: (productId: string) => void;
   updateQuantity: (productId: string, quantity: number) => void;
+  updateItemOptions: (
+    productId: string,
+    options: { selectedSize?: string; selectedColor?: string },
+  ) => void;
   clearCart: () => void;
   subtotal: number;
   totalItems: number;
@@ -106,11 +110,9 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
           errObj?.message?.toLowerCase().includes("unauthorized") ||
           errObj?.status === 401
         ) {
-          console.warn("Session expired. Clearing stale token.");
           Cookies.remove(TOKEN_COOKIE_NAME);
           return;
         }
-        console.warn("Could not fetch remote cart:", err);
       }
 
       const mergedMap = new Map<string, CartItem>();
@@ -147,22 +149,6 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         } else if (remote.id && !localMatch.id) {
           mergedMap.set(prodId, { ...localMatch, id: remote.id });
         }
-      }
-
-      const unsyncedLocal = localItems.filter(
-        (local) =>
-          local?.product?.id &&
-          !remoteItems.some(
-            (r) => (r.product?.id || r.productId) === local.product.id,
-          ),
-      );
-
-      if (unsyncedLocal.length > 0) {
-        await Promise.allSettled(
-          unsyncedLocal.map((item) =>
-            apiClient.addToCart(item.product.id, item.quantity),
-          ),
-        );
       }
 
       const finalCart = Array.from(mergedMap.values());
@@ -255,9 +241,16 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         if (isExisting && existingCartItemId) {
           const targetItem = cart.find((i) => i.product?.id === product.id);
           const newQty = (targetItem?.quantity || 1) + quantity;
-          await apiClient.updateCartItem(existingCartItemId, newQty);
+          await apiClient.updateCartItem(existingCartItemId, {
+            quantity: newQty,
+          });
         } else {
-          const serverItem = await apiClient.addToCart(product.id, quantity);
+          const serverItem = await apiClient.addToCart(
+            product.id,
+            quantity,
+            selectedSize,
+            selectedColor,
+          );
           if (serverItem?.id) {
             setCart((prev) =>
               prev.map((item) =>
@@ -313,9 +306,33 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     const token = Cookies.get(TOKEN_COOKIE_NAME);
     if (token && targetItem?.id) {
       try {
-        await apiClient.updateCartItem(targetItem.id, newQuantity);
+        await apiClient.updateCartItem(targetItem.id, {
+          quantity: newQuantity,
+        });
       } catch (err) {
         console.error("Failed to update cart item quantity on server:", err);
+      }
+    }
+  };
+
+  const updateItemOptions = async (
+    productId: string,
+    options: { selectedSize?: string; selectedColor?: string },
+  ) => {
+    const targetItem = cart.find((item) => item.product?.id === productId);
+
+    setCart((prev) =>
+      prev.map((item) =>
+        item.product?.id === productId ? { ...item, ...options } : item,
+      ),
+    );
+
+    const token = Cookies.get(TOKEN_COOKIE_NAME);
+    if (token && targetItem?.id) {
+      try {
+        await apiClient.updateCartItem(targetItem.id, options);
+      } catch (err) {
+        console.error("Failed to update item options on server:", err);
       }
     }
   };
@@ -365,6 +382,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         addToCart,
         removeFromCart,
         updateQuantity,
+        updateItemOptions,
         clearCart,
         subtotal,
         totalItems,

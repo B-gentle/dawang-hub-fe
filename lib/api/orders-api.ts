@@ -13,6 +13,8 @@ export interface ShippingAddressPayload {
 export interface OrderItemPayload {
   productId: string;
   quantity: number;
+  selectedSize?: string;
+  selectedColor?: string;
 }
 
 export interface CreateOrderPayload {
@@ -46,6 +48,8 @@ export interface OrderItemResponse {
   productName: string;
   unitPrice: number;
   quantity: number;
+  selectedSize?: string;
+  selectedColor?: string;
 }
 
 export interface OrderResponse {

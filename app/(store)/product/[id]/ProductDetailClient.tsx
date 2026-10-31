@@ -34,6 +34,8 @@ export default function ProductDetailPage({ params }: PageProps) {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [relatedProducts, setRelatedProducts] = useState<Product[]>([]);
   const [selectedImage, setSelectedImage] = useState<string>("");
+  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [selectedColor, setSelectedColor] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -69,8 +71,15 @@ export default function ProductDetailPage({ params }: PageProps) {
         if (dataRes.status === "fulfilled" && dataRes.value) {
           const data = dataRes.value as Product;
           setProduct(data);
+
           if (data.images && data.images.length > 0) {
             setSelectedImage(data.images[0]);
+          }
+          if (data.sizes && data.sizes.length > 0) {
+            setSelectedSize(data.sizes[0]);
+          }
+          if (data.colors && data.colors.length > 0) {
+            setSelectedColor(data.colors[0]);
           }
 
           if (data.categoryId) {
@@ -140,7 +149,7 @@ export default function ProductDetailPage({ params }: PageProps) {
 
   const handleAddToCart = () => {
     if (product) {
-      addToCart(product, quantity);
+      addToCart(product, quantity, selectedSize, selectedColor);
     }
   };
 
@@ -150,7 +159,6 @@ export default function ProductDetailPage({ params }: PageProps) {
 
   return (
     <div className="min-h-screen bg-white font-sans text-[#151413]">
-      {/* Breadcrumb Navigation */}
       <div className="bg-[#FAF9F6] border-b border-[#EAE8E4] py-3 px-4 sm:px-8 lg:px-12 text-[11px] text-[#76726E]">
         <div className="max-w-7xl mx-auto flex items-center gap-2">
           <Link href="/" className="hover:text-[#151413]">
@@ -161,19 +169,17 @@ export default function ProductDetailPage({ params }: PageProps) {
             Shop
           </Link>
           <span>/</span>
-          <span className="text-[#151413] font-medium truncate max-w-[200px]">
+          <span className="text-[#151413] font-medium truncate max-w-50">
             {product.name}
           </span>
         </div>
       </div>
 
-      {/* Main Product Showcase Grid */}
       <div className="max-w-7xl mx-auto px-4 sm:px-8 lg:px-12 py-8 sm:py-12">
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
-          {/* Gallery */}
           <div className="lg:col-span-7 flex flex-col-reverse sm:flex-row gap-4">
             {product.images && product.images.length > 1 && (
-              <div className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-y-auto max-h-[500px] shrink-0 no-scrollbar">
+              <div className="flex sm:flex-col gap-3 overflow-x-auto sm:overflow-y-auto max-h-125 shrink-0 no-scrollbar">
                 {product.images.map((imgUrl, index) => (
                   <button
                     key={index}
@@ -227,7 +233,6 @@ export default function ProductDetailPage({ params }: PageProps) {
             </div>
           </div>
 
-          {/* Details */}
           <div className="lg:col-span-5 flex flex-col gap-6">
             <div>
               <span className="text-xs font-bold tracking-widest text-[#C4956A] uppercase block mb-1">
@@ -270,6 +275,56 @@ export default function ProductDetailPage({ params }: PageProps) {
                   : "Out of Stock"}
               </span>
             </div>
+
+            {/* Size Selector */}
+            {product.sizes && product.sizes.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#151413]">
+                  Size: <span className="text-[#C4956A]">{selectedSize}</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {product.sizes.map((size) => (
+                    <button
+                      key={size}
+                      type="button"
+                      onClick={() => setSelectedSize(size)}
+                      className={`px-3 py-1.5 text-xs font-bold border rounded-md transition-colors cursor-pointer ${
+                        selectedSize === size
+                          ? "border-[#151413] bg-[#151413] text-white"
+                          : "border-[#EAE8E4] bg-[#FAF9F6] text-[#151413] hover:border-[#151413]"
+                      }`}
+                    >
+                      {size}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Color Selector */}
+            {product.colors && product.colors.length > 0 && (
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-[#151413]">
+                  Color: <span className="text-[#C4956A]">{selectedColor}</span>
+                </label>
+                <div className="flex flex-wrap gap-2">
+                  {product.colors.map((color) => (
+                    <button
+                      key={color}
+                      type="button"
+                      onClick={() => setSelectedColor(color)}
+                      className={`px-3 py-1.5 text-xs font-bold border rounded-md transition-colors cursor-pointer ${
+                        selectedColor === color
+                          ? "border-[#151413] bg-[#151413] text-white"
+                          : "border-[#EAE8E4] bg-[#FAF9F6] text-[#151413] hover:border-[#151413]"
+                      }`}
+                    >
+                      {color}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
 
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <div className="flex items-center justify-between border border-[#EAE8E4] rounded-md bg-[#FAF9F6] px-3 py-2.5 w-full sm:w-32">
@@ -324,7 +379,6 @@ export default function ProductDetailPage({ params }: PageProps) {
               </div>
             </div>
 
-            {/* Accordion Section */}
             <div className="flex flex-col border-t border-[#EAE8E4] pt-4 mt-2 divide-y divide-[#EAE8E4]">
               <div className="py-3">
                 <button
@@ -346,7 +400,6 @@ export default function ProductDetailPage({ params }: PageProps) {
                 )}
               </div>
 
-              {/* Product Reviews Accordion */}
               <div className="py-3">
                 <button
                   onClick={() => toggleTab("reviews")}
@@ -400,7 +453,6 @@ export default function ProductDetailPage({ params }: PageProps) {
         </div>
       </div>
 
-      {/* Related Products */}
       {relatedProducts.length > 0 && (
         <div className="bg-[#FAF9F6] border-t border-[#EAE8E4] mt-12">
           <ProductGrid

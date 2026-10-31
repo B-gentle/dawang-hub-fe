@@ -283,7 +283,7 @@ export default function AdminOrdersPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[750px]">
+            <table className="w-full text-left border-collapse min-w-187.5">
               <thead>
                 <tr className="bg-[#FAF9F6] border-b border-[#EAE8E4] text-[10px] font-bold uppercase tracking-[0.15em] text-[#76726E]">
                   <th className="py-3.5 px-4 font-bold">ORDER ID</th>
@@ -419,7 +419,7 @@ export default function AdminOrdersPage() {
                 </span>
               </div>
 
-              {/* Itemized Products */}
+              {/* Itemized Products with Selected Size and Color */}
               {selectedOrder.items && selectedOrder.items.length > 0 && (
                 <div className="flex flex-col gap-2.5">
                   <span className="font-bold uppercase tracking-wider text-[10px] text-[#76726E]">
@@ -428,15 +428,31 @@ export default function AdminOrdersPage() {
                   {selectedOrder.items.map((item) => (
                     <div
                       key={item.id}
-                      className="p-3 bg-white border border-[#EAE8E4] rounded-md text-xs flex justify-between items-center"
+                      className="p-3 bg-white border border-[#EAE8E4] rounded-md text-xs flex justify-between items-start"
                     >
-                      <span>
-                        {item.productName}{" "}
-                        <strong className="text-[#C4956A]">
-                          x{item.quantity}
-                        </strong>
-                      </span>
-                      <span className="font-bold">
+                      <div className="flex flex-col gap-1">
+                        <span className="font-semibold text-[#151413]">
+                          {item.productName}{" "}
+                          <strong className="text-[#C4956A]">
+                            x{item.quantity}
+                          </strong>
+                        </span>
+
+                        <div className="flex flex-wrap items-center gap-1.5 mt-0.5">
+                          {item.selectedSize && (
+                            <span className="text-[10px] font-bold bg-[#FAF9F6] text-[#151413] border border-[#EAE8E4] px-2 py-0.5 rounded-xs">
+                              Size: {item.selectedSize}
+                            </span>
+                          )}
+                          {item.selectedColor && (
+                            <span className="text-[10px] font-bold bg-[#FAF9F6] text-[#151413] border border-[#EAE8E4] px-2 py-0.5 rounded-xs">
+                              Color: {item.selectedColor}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+
+                      <span className="font-bold shrink-0">
                         ₦
                         {(
                           Number(item.unitPrice) * item.quantity

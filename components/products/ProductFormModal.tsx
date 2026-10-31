@@ -31,6 +31,32 @@ export default function ProductFormModal({
   onFileSelect,
   onRemoveImage,
 }: ProductFormModalProps) {
+  // Derive string values directly during render
+  const sizeInput = Array.isArray(formData.sizes)
+    ? formData.sizes.join(", ")
+    : "";
+  const colorInput = Array.isArray(formData.colors)
+    ? formData.colors.join(", ")
+    : "";
+
+  const handleSizesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const parsed = val
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    setFormData((prev) => ({ ...prev, sizes: parsed }));
+  };
+
+  const handleColorsChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const parsed = val
+      .split(",")
+      .map((c) => c.trim())
+      .filter(Boolean);
+    setFormData((prev) => ({ ...prev, colors: parsed }));
+  };
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -103,7 +129,7 @@ export default function ProductFormModal({
                     <option value="">Select a category</option>
                     {categories.map((cat) => (
                       <option key={cat.id} value={cat.id}>
-                        {cat.name}
+                        {cat.name} {!cat.isActive ? "(Inactive)" : ""}
                       </option>
                     ))}
                   </select>
@@ -163,6 +189,41 @@ export default function ProductFormModal({
                     }
                     className="w-full mt-1 p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md"
                   />
+                </div>
+              </div>
+
+              {/* Sizes and Colors Section */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="font-bold uppercase tracking-wider text-[#1A1A1A]">
+                    Available Sizes (Comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="S, M, L, XL or 38, 39, 40"
+                    value={sizeInput}
+                    onChange={handleSizesChange}
+                    className="w-full mt-1 p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
+                  />
+                  <p className="text-[10px] text-[#76726E] mt-0.5">
+                    Leave blank if not applicable
+                  </p>
+                </div>
+
+                <div>
+                  <label className="font-bold uppercase tracking-wider text-[#1A1A1A]">
+                    Available Colors (Comma-separated)
+                  </label>
+                  <input
+                    type="text"
+                    placeholder="Black, Gold, Emerald Green"
+                    value={colorInput}
+                    onChange={handleColorsChange}
+                    className="w-full mt-1 p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
+                  />
+                  <p className="text-[10px] text-[#76726E] mt-0.5">
+                    Leave blank if not applicable
+                  </p>
                 </div>
               </div>
 

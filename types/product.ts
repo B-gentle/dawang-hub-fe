@@ -17,10 +17,18 @@ export interface Product {
   stockQuantity: number;
   sku: string;
   images: string[];
+  sizes?: string[];
+  colors?: string[];
   isFeatured?: boolean;
   isPopular?: boolean;
   categoryId?: string;
   category?: ProductCategory;
+  uploadedBy?: {
+    id: string;
+    email: string;
+    firstName?: string;
+    lastName?: string;
+  };
   createdAt: string;
   updatedAt?: string;
 }

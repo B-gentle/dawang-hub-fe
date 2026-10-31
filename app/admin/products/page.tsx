@@ -75,6 +75,8 @@ export default function AdminProductsPage() {
     stockQuantity: 0,
     sku: "",
     images: [],
+    sizes: [],
+    colors: [],
     isFeatured: false,
     isPopular: false,
     categoryId: "",
@@ -180,6 +182,8 @@ export default function AdminProductsPage() {
       stockQuantity: 0,
       sku: "",
       images: [],
+      sizes: [],
+      colors: [],
       isFeatured: false,
       isPopular: false,
       categoryId: categories[0]?.id || "",
@@ -198,6 +202,8 @@ export default function AdminProductsPage() {
       stockQuantity: product.stockQuantity || 0,
       sku: product.sku || "",
       images: product.images || [],
+      sizes: product.sizes || [],
+      colors: product.colors || [],
       isFeatured: product.isFeatured || false,
       isPopular: product.isPopular || false,
       categoryId: product.categoryId || "",
@@ -276,6 +282,8 @@ export default function AdminProductsPage() {
           isFeatured: formData.isFeatured,
           isPopular: formData.isPopular,
           images: existingUrls,
+          sizes: formData.sizes || [],
+          colors: formData.colors || [],
         };
 
         if (formData.discountPrice)
@@ -300,6 +308,8 @@ export default function AdminProductsPage() {
           isFeatured: formData.isFeatured,
           isPopular: formData.isPopular,
           images: [],
+          sizes: formData.sizes || [],
+          colors: formData.colors || [],
         };
 
         if (formData.discountPrice)
@@ -540,7 +550,7 @@ export default function AdminProductsPage() {
         ) : (
           <>
             <div className="overflow-x-auto">
-              <table className="w-full text-left border-collapse min-w-[600px]">
+              <table className="w-full text-left border-collapse min-w-150">
                 <thead>
                   <tr className="bg-[#FAF9F6] border-b border-[#EAE8E4] text-[10px] font-bold uppercase tracking-wider text-[#76726E]">
                     <th className="py-3 px-4">Product</th>
@@ -559,7 +569,7 @@ export default function AdminProductsPage() {
                       className="hover:bg-[#FAF9F6] transition-colors"
                     >
                       <td className="py-3 px-4 flex items-center gap-3">
-                        <div className="w-10 h-10 rounded bg-[#FAF9F6] border border-[#EAE8E4] overflow-hidden flex-shrink-0">
+                        <div className="w-10 h-10 rounded bg-[#FAF9F6] border border-[#EAE8E4] overflow-hidden shrink-0">
                           {product.images?.[0] ? (
                             /* eslint-disable-next-line @next/next/no-img-element */
                             <img
