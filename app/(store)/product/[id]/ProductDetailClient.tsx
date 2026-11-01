@@ -439,7 +439,9 @@ export default function ProductDetailPage({ params }: PageProps) {
                   <div className="text-xs text-[#76726E] mt-3 leading-relaxed flex flex-col gap-2">
                     <p>
                       Orders in Port Harcourt are processed and delivered within
-                      24-48 hours.
+                      24-48 hours. <br />
+                      Orders in Port Harcourt are door step deliveries while
+                      orders outside Port Harcourt are processed via waybill.
                     </p>
                     <p>
                       Interstate shipments typically arrive within 2-4 business
