@@ -26,7 +26,6 @@ export default function CheckoutPage() {
 
   const shippingFee = subtotal >= 150000 || subtotal === 0 ? 0 : 5000;
 
-  // Fetch returning user profile and default saved address if authenticated
   useEffect(() => {
     let active = true;
 
@@ -61,7 +60,6 @@ export default function CheckoutPage() {
         }
 
         if (user) {
-          // Merge profile contact info with default saved shipping address
           setUserProfile({
             ...user,
             phoneNumber: user.phoneNumber || "",
@@ -108,6 +106,8 @@ export default function CheckoutPage() {
         items: cart.map((item) => ({
           productId: item.product.id,
           quantity: item.quantity,
+          selectedSize: item.selectedSize || undefined,
+          selectedColor: item.selectedColor || undefined,
         })),
       };
 
