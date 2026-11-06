@@ -1,9 +1,14 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
+import {
+  systemConfigApi,
+  HeroType,
+  SystemConfig,
+} from "@/lib/api/system-config-api";
 
 interface HeroProps {
-  videoId?: string;
   subtitle?: string;
   title?: string;
   description?: string;
@@ -14,7 +19,6 @@ interface HeroProps {
 }
 
 export default function Hero({
-  videoId = "t1Nbqpse8kc",
   subtitle = "Welcome to the Dawang Experience",
   title = "Fashion. Beauty. Lifestyle.",
   description = "Style that speaks, Quality that lasts",
@@ -23,22 +27,91 @@ export default function Hero({
   secondaryCtaText = "View Clothing",
   secondaryCtaHref = "/shop?category=clothes",
 }: HeroProps) {
+  const [config, setConfig] = useState<SystemConfig>({
+    heroType: HeroType.VIDEO,
+    heroImages: [],
+    heroVideoId: "t1Nbqpse8kc",
+    minFreeDeliveryFare: 150000,
+    paymentEnv: "test",
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    const fetchConfig = async () => {
+      try {
+        const data = await systemConfigApi.getPublicConfig();
+        if (isMounted && data) {
+          setConfig(data);
+        }
+      } catch (err) {
+        console.warn(
+          "Could not load hero system config, falling back to defaults",
+          err,
+        );
+      }
+    };
+
+    fetchConfig();
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const videoId = config.heroVideoId || "t1Nbqpse8kc";
+  const images = config.heroImages || [];
+  const imageCount = images.length;
+
   return (
-    <section className="relative w-full h-[80vh] min-h-[500px] max-h-[800px] bg-[#151413] text-white overflow-hidden flex items-center justify-center">
-      {/* Background YouTube Video iFrame Container */}
+    <section className="relative w-full h-[80vh] min-h-125 max-h-200 bg-[#151413] text-white overflow-hidden flex items-center justify-center">
+      {/* BACKGROUND MEDIA DISPLAY */}
       <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
-        <iframe
-          src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1`}
-          title="Dawang Hub Brand Reel"
-          className="w-[300%] h-[300%] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 object-cover opacity-60"
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-        />
+        {config.heroType === HeroType.VIDEO || imageCount === 0 ? (
+          /* YouTube Video Background */
+          <iframe
+            src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1`}
+            title="Dawang Hub Brand Reel"
+            className="w-[300%] h-[300%] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 object-cover opacity-60"
+            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          />
+        ) : (
+          /* Dynamic Image Grid Layout */
+          <div
+            className={`w-full h-full grid gap-0.5 ${
+              imageCount === 1
+                ? "grid-cols-1"
+                : imageCount === 2
+                  ? "grid-cols-2"
+                  : imageCount === 3
+                    ? "grid-cols-2 grid-rows-2"
+                    : "grid-cols-2 lg:grid-cols-4"
+            }`}
+          >
+            {images.slice(0, 4).map((imgUrl, index) => {
+              const isThirdInThreeGrid = imageCount === 3 && index === 2;
+              return (
+                <div
+                  key={index}
+                  className={`relative w-full h-full overflow-hidden ${
+                    isThirdInThreeGrid ? "col-span-2" : ""
+                  }`}
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={imgUrl}
+                    alt={`Dawang Hero Banner ${index + 1}`}
+                    className="w-full h-full object-cover opacity-75 transform scale-105 transition-transform duration-1000 hover:scale-100"
+                  />
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Dark Luxury Overlay */}
-      <div className="absolute inset-0 bg-gradient-to-t from-[#151413] via-[#151413]/50 to-black/60" />
+      {/* Dark Luxury Gradient Overlay */}
+      <div className="absolute inset-0 bg-linear-to-t from-[#151413] via-[#151413]/60 to-black/70 z-0" />
 
-      {/* Hero Content */}
+      {/* Hero Text Content */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center text-center gap-5">
         <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.35em] text-[#C4956A]">
           {subtitle}
