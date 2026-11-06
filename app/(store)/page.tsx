@@ -78,7 +78,7 @@ export default function HomePage() {
 
   return (
     <div className="flex flex-col min-h-screen bg-white font-sans text-[#151413]">
-      <Hero videoId="t1Nbqpse8kc" />
+      <Hero />
 
       {/* 1. New Arrivals Section Anchor */}
       <section id="new-arrivals" className="scroll-mt-20">
