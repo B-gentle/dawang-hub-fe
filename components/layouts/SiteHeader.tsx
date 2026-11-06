@@ -17,6 +17,7 @@ import {
 } from "react-icons/fi";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCart } from "@/context/CartContext";
+import { systemConfigApi } from "@/lib/api/system-config-api";
 
 const NAV_LINKS = [
   { label: "Shop", href: "/shop" },
@@ -32,17 +33,37 @@ const SiteHeader = () => {
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
+  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(0);
 
   const { wishlist, isMounted } = useWishlist();
   const { totalItems, openCart } = useCart();
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
-  // Safely set auth status after hydration microtask tick
+  // Fetch free shipping threshold from System Config & set auth status
   useEffect(() => {
+    let isMountedFlag = true;
+
     queueMicrotask(() => {
-      setIsLoggedIn(Boolean(Cookies.get(TOKEN_COOKIE_NAME)));
+      if (isMountedFlag) {
+        setIsLoggedIn(Boolean(Cookies.get(TOKEN_COOKIE_NAME)));
+      }
     });
+
+    systemConfigApi
+      .getPublicConfig()
+      .then((config) => {
+        if (isMountedFlag && config?.minFreeDeliveryFare) {
+          setFreeShippingThreshold(Number(config.minFreeDeliveryFare));
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch system config for header:", err);
+      });
+
+    return () => {
+      isMountedFlag = false;
+    };
   }, []);
 
   // Use hydration-safe flags
@@ -61,7 +82,9 @@ const SiteHeader = () => {
     <header className="sticky top-0 z-50 w-full border-b border-[#EAE8E4] bg-white/95 backdrop-blur-md font-sans">
       {/* Top Announcement Bar */}
       <div className="w-full bg-[#151413] text-white text-[9px] sm:text-[10px] font-bold tracking-[0.15em] sm:tracking-[0.2em] py-2 text-center flex items-center justify-center gap-1.5 px-3">
-        <span className="truncate">FREE DELIVERY ON ORDERS OVER ₦150,000</span>
+        <span className="truncate">
+          FREE DELIVERY ON ORDERS OVER ₦{freeShippingThreshold.toLocaleString()}
+        </span>
         <span className="text-white/40 hidden sm:inline">•</span>
         <Link
           href="/shop"
@@ -89,7 +112,7 @@ const SiteHeader = () => {
 
           {/* Desktop Logo */}
           <Link href="/" className="hidden sm:flex items-center gap-2">
-            <div className="relative w-14 h-14 overflow-hidden flex-shrink-0">
+            <div className="relative w-14 h-14 overflow-hidden shrink-0">
               <Image
                 src="/logo-nobg.png"
                 alt="Dawang Stores Logo"
@@ -164,9 +187,9 @@ const SiteHeader = () => {
         </div>
 
         {/* Mobile Right Section */}
-        <div className="flex sm:hidden items-center gap-[2px]">
+        <div className="flex sm:hidden items-center gap-0.5">
           <Link href="/" className="flex items-center">
-            <div className="relative w-14 h-14 overflow-hidden flex-shrink-0">
+            <div className="relative w-14 h-14 overflow-hidden shrink-0">
               <Image
                 src="/logo-nobg.png"
                 alt="Dawang Stores Logo"

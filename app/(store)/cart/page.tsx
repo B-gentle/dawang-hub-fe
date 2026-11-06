@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -12,6 +13,7 @@ import {
   FiTruck,
 } from "react-icons/fi";
 import { useCart } from "@/context/CartContext";
+import { systemConfigApi } from "@/lib/api/system-config-api";
 
 const CartPage = () => {
   const {
@@ -24,7 +26,29 @@ const CartPage = () => {
     clearCart,
   } = useCart();
 
-  const estimatedShipping = subtotal >= 150000 || subtotal === 0 ? 0 : 5000;
+  const [freeShippingThreshold, setFreeShippingThreshold] =
+    useState<number>(250000);
+
+  useEffect(() => {
+    let isMounted = true;
+    systemConfigApi
+      .getPublicConfig()
+      .then((config) => {
+        if (isMounted && config?.minFreeDeliveryFare) {
+          setFreeShippingThreshold(Number(config.minFreeDeliveryFare));
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch system config for cart page:", err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const estimatedShipping =
+    subtotal >= freeShippingThreshold || subtotal === 0 ? 0 : 5000;
   const grandTotal = subtotal + estimatedShipping;
 
   return (
@@ -241,8 +265,8 @@ const CartPage = () => {
                 </div>
                 {estimatedShipping > 0 && (
                   <p className="text-[10px] text-[#C4956A]">
-                    Add ₦{(150000 - subtotal).toLocaleString()} more for FREE
-                    delivery!
+                    Add ₦{(freeShippingThreshold - subtotal).toLocaleString()}{" "}
+                    more for FREE delivery!
                   </p>
                 )}
               </div>
