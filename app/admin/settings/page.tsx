@@ -2,57 +2,54 @@
 
 import { useEffect, useState } from "react";
 import {
-  LuStore,
   LuTruck,
-  LuSlice,
   LuSave,
   LuRefreshCw,
-  LuDollarSign,
-  LuPercent,
-  LuShieldAlert,
   LuCheck,
+  LuImage,
+  LuUpload,
+  LuTrash2,
+  LuVideo,
+  LuCreditCard,
 } from "react-icons/lu";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
-import { StoreSettings } from "@/lib/api/settings-api";
+import {
+  systemConfigApi,
+  HeroType,
+  SystemConfig,
+} from "@/lib/api/system-config-api";
 
 export default function AdminSettingsPage() {
-  const [activeTab, setActiveTab] = useState<
-    "general" | "shipping" | "controls"
-  >("general");
+  const [activeTab, setActiveTab] = useState<"hero" | "shipping">("hero");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-  const [settings, setSettings] = useState<StoreSettings>({
-    storeName: "DAWANGHUB Studio",
-    supportEmail: "support@dawanghub.com",
-    supportPhone: "+234 800 000 0000",
-    currency: "NGN",
-    currencySymbol: "₦",
-    taxRate: 7.5,
-    defaultShippingFee: 2500,
-    freeShippingThreshold: 50000,
-    maintenanceMode: false,
-    allowGuestCheckout: true,
-    autoApproveOrders: true,
-    address: {
-      street: "123 Luxury Way, Victoria Island",
-      city: "Lagos",
-      state: "Lagos",
-      country: "Nigeria",
-    },
+  // System Configuration state connected directly to system-config-api
+  const [sysConfig, setSysConfig] = useState<SystemConfig>({
+    heroType: HeroType.IMAGE,
+    heroImages: [],
+    heroVideoId: "",
+    minFreeDeliveryFare: 150000,
+    paymentEnv: "test",
   });
 
   const loadSettings = async () => {
     try {
       setLoading(true);
-      const data = await apiClient.getStoreSettings().catch(() => null);
+      const data = await systemConfigApi.getPublicConfig();
       if (data) {
-        setSettings((prev) => ({ ...prev, ...data }));
+        setSysConfig({
+          heroType: data.heroType || HeroType.IMAGE,
+          heroImages: data.heroImages || [],
+          heroVideoId: data.heroVideoId || "",
+          minFreeDeliveryFare: Number(data.minFreeDeliveryFare) || 0,
+          paymentEnv: data.paymentEnv || "test",
+        });
       }
     } catch (err) {
-      console.error("Failed to fetch store settings:", err);
-      toast.error("Could not load latest store settings");
+      console.error("Failed to fetch system config:", err);
+      toast.error("Could not load system configuration from server");
     } finally {
       setLoading(false);
     }
@@ -76,14 +73,85 @@ export default function AdminSettingsPage() {
     e.preventDefault();
     try {
       setSaving(true);
-      await apiClient.updateStoreSettings(settings);
-      toast.success("Store configuration updated successfully");
+
+      // Ensure heroImages is explicitly a clean string array
+      const cleanedHeroImages = Array.isArray(sysConfig.heroImages)
+        ? sysConfig.heroImages.filter(
+            (img) => typeof img === "string" && img.trim() !== "",
+          )
+        : [];
+
+      const updated = await systemConfigApi.updateSystemConfig({
+        heroType: sysConfig.heroType,
+        heroImages: cleanedHeroImages,
+        heroVideoId: sysConfig.heroVideoId || "",
+        minFreeDeliveryFare: Number(sysConfig.minFreeDeliveryFare) || 0,
+        paymentEnv: sysConfig.paymentEnv || "test",
+      });
+
+      setSysConfig({
+        heroType: updated.heroType || HeroType.IMAGE,
+        heroImages: Array.isArray(updated.heroImages) ? updated.heroImages : [],
+        heroVideoId: updated.heroVideoId || "",
+        minFreeDeliveryFare: Number(updated.minFreeDeliveryFare) || 0,
+        paymentEnv: updated.paymentEnv || "test",
+      });
+
+      toast.success("System configuration updated successfully");
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to save settings";
       toast.error(msg);
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleHeroFileUpload = async (
+    e: React.ChangeEvent<HTMLInputElement>,
+  ) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (sysConfig.heroImages.length >= 4) {
+      toast.error("Maximum 4 hero images allowed");
+      return;
+    }
+
+    try {
+      setUploadingImage(true);
+      toast.info("Uploading image to Cloudinary...");
+      const res = await systemConfigApi.uploadSystemImage(file);
+
+      if (!res.url || typeof res.url !== "string") {
+        throw new Error("Invalid image URL returned from server");
+      }
+
+      setSysConfig((prev) => ({
+        ...prev,
+        heroImages: [...prev.heroImages, res.url],
+      }));
+      toast.success("Hero image uploaded successfully");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      toast.error(msg);
+    } finally {
+      setUploadingImage(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveHeroImage = async (url: string) => {
+    try {
+      await systemConfigApi.deleteSystemImage(url);
+      setSysConfig((prev) => ({
+        ...prev,
+        heroImages: prev.heroImages.filter((img) => img !== url),
+      }));
+      toast.success("Image removed from Cloudinary");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to delete image";
+      toast.error(msg);
     }
   };
 
@@ -96,11 +164,11 @@ export default function AdminSettingsPage() {
             PREFERENCES
           </span>
           <h1 className="font-heading text-3xl font-bold text-[#151413] mt-1">
-            Store Settings
+            System Settings
           </h1>
           <p className="text-sm text-[#76726E] mt-1">
-            Configure general store profile, currency rates, delivery
-            parameters, and system maintenance.
+            Configure homepage hero media, delivery free-fare thresholds, and
+            payment environments.
           </p>
         </div>
 
@@ -121,21 +189,21 @@ export default function AdminSettingsPage() {
       {loading ? (
         <div className="py-24 flex flex-col items-center justify-center gap-2 text-xs text-[#76726E]">
           <LuRefreshCw className="w-6 h-6 animate-spin text-[#C4956A]" />
-          Loading store preferences...
+          Loading system preferences...
         </div>
       ) : (
         <div className="flex flex-col md:flex-row gap-8">
           {/* Settings Navigation Sidebar */}
           <aside className="w-full md:w-64 shrink-0 flex flex-col gap-1">
             <button
-              onClick={() => setActiveTab("general")}
+              onClick={() => setActiveTab("hero")}
               className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
-                activeTab === "general"
+                activeTab === "hero"
                   ? "bg-[#171514] text-white"
                   : "bg-white text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6] border border-[#EAE8E4]"
               }`}
             >
-              <LuStore className="w-4 h-4 text-[#C4956A]" /> General Profile
+              <LuImage className="w-4 h-4 text-[#C4956A]" /> Hero Banner Media
             </button>
 
             <button
@@ -146,19 +214,7 @@ export default function AdminSettingsPage() {
                   : "bg-white text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6] border border-[#EAE8E4]"
               }`}
             >
-              <LuTruck className="w-4 h-4 text-[#C4956A]" /> Shipping & Tax
-              Rates
-            </button>
-
-            <button
-              onClick={() => setActiveTab("controls")}
-              className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
-                activeTab === "controls"
-                  ? "bg-[#171514] text-white"
-                  : "bg-white text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6] border border-[#EAE8E4]"
-              }`}
-            >
-              <LuSlice className="w-4 h-4 text-[#C4956A]" /> System Controls
+              <LuTruck className="w-4 h-4 text-[#C4956A]" /> Delivery & Payment
             </button>
           </aside>
 
@@ -168,205 +224,158 @@ export default function AdminSettingsPage() {
               onSubmit={handleSaveSettings}
               className="flex flex-col gap-6 text-xs text-[#151413]"
             >
-              {/* TAB 1: GENERAL PROFILE */}
-              {activeTab === "general" && (
+              {/* TAB 1: HERO BANNER MEDIA */}
+              {activeTab === "hero" && (
                 <div className="flex flex-col gap-5">
                   <div className="pb-3 border-b border-[#EAE8E4]">
                     <h2 className="font-heading text-base font-bold uppercase tracking-wider text-[#151413]">
-                      General Store Information
+                      Hero Section Media
                     </h2>
                     <p className="text-[#76726E] text-xs mt-0.5">
-                      Identifiable details displayed on customer receipts and
-                      emails.
+                      Configure image carousels or video embeds for the homepage
+                      hero banner.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
-                        Store Name *
-                      </label>
-                      <input
-                        type="text"
-                        required
-                        value={settings.storeName}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            storeName: e.target.value,
-                          })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
-                        Support Email *
-                      </label>
-                      <input
-                        type="email"
-                        required
-                        value={settings.supportEmail}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            supportEmail: e.target.value,
-                          })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
-                        Support Phone Number
-                      </label>
-                      <input
-                        type="text"
-                        value={settings.supportPhone || ""}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            supportPhone: e.target.value,
-                          })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
-                        Store Base Country
-                      </label>
-                      <input
-                        type="text"
-                        value={settings.address?.country || "Nigeria"}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            address: {
-                              ...settings.address,
-                              country: e.target.value,
-                            } as StoreSettings["address"],
-                          })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-2">
                     <label className="font-bold uppercase tracking-wider text-[#76726E]">
-                      Store Physical Headquarters
+                      Hero Display Type
                     </label>
-                    <input
-                      type="text"
-                      placeholder="Street address..."
-                      value={settings.address?.street || ""}
-                      onChange={(e) =>
-                        setSettings({
-                          ...settings,
-                          address: {
-                            ...settings.address,
-                            street: e.target.value,
-                          } as StoreSettings["address"],
-                        })
-                      }
-                      className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
-                    />
+                    <div className="flex gap-4">
+                      <label className="flex items-center gap-2 cursor-pointer p-3 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md flex-1">
+                        <input
+                          type="radio"
+                          name="heroType"
+                          value={HeroType.IMAGE}
+                          checked={sysConfig.heroType === HeroType.IMAGE}
+                          onChange={() =>
+                            setSysConfig((prev) => ({
+                              ...prev,
+                              heroType: HeroType.IMAGE,
+                            }))
+                          }
+                          className="accent-[#C4956A]"
+                        />
+                        <LuImage className="w-4 h-4 text-[#C4956A]" />
+                        <span className="font-bold">
+                          Image Carousel (Max 4)
+                        </span>
+                      </label>
+
+                      <label className="flex items-center gap-2 cursor-pointer p-3 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md flex-1">
+                        <input
+                          type="radio"
+                          name="heroType"
+                          value={HeroType.VIDEO}
+                          checked={sysConfig.heroType === HeroType.VIDEO}
+                          onChange={() =>
+                            setSysConfig((prev) => ({
+                              ...prev,
+                              heroType: HeroType.VIDEO,
+                            }))
+                          }
+                          className="accent-[#C4956A]"
+                        />
+                        <LuVideo className="w-4 h-4 text-[#C4956A]" />
+                        <span className="font-bold">Video Embed</span>
+                      </label>
+                    </div>
                   </div>
+
+                  {/* IMAGE CAROUSEL SECTION */}
+                  {sysConfig.heroType === HeroType.IMAGE && (
+                    <div className="flex flex-col gap-3">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
+                        Hero Images ({sysConfig.heroImages.length} / 4)
+                      </label>
+
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        {sysConfig.heroImages.map((imgUrl, idx) => (
+                          <div
+                            key={idx}
+                            className="relative aspect-video rounded-md border border-[#EAE8E4] overflow-hidden group bg-[#FAF9F6]"
+                          >
+                            {/* eslint-disable-next-line @next/next/no-img-element */}
+                            <img
+                              src={imgUrl}
+                              alt={`Hero ${idx + 1}`}
+                              className="w-full h-full object-cover"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveHeroImage(imgUrl)}
+                              className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-md cursor-pointer opacity-90 hover:opacity-100 transition-opacity"
+                              title="Delete image from Cloudinary"
+                            >
+                              <LuTrash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        ))}
+
+                        {sysConfig.heroImages.length < 4 && (
+                          <label className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-[#EAE8E4] rounded-md cursor-pointer bg-[#FAF9F6] hover:bg-[#FAF5EF] transition-colors">
+                            {uploadingImage ? (
+                              <LuRefreshCw className="w-5 h-5 animate-spin text-[#C4956A]" />
+                            ) : (
+                              <>
+                                <LuUpload className="w-5 h-5 text-[#C4956A] mb-1" />
+                                <span className="text-[10px] font-bold text-[#151413]">
+                                  Upload Image
+                                </span>
+                              </>
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={uploadingImage}
+                              onChange={handleHeroFileUpload}
+                              className="hidden"
+                            />
+                          </label>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* VIDEO EMBED SECTION */}
+                  {sysConfig.heroType === HeroType.VIDEO && (
+                    <div className="flex flex-col gap-1.5">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
+                        YouTube Video ID / URL
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., dQw4w9WgXcQ"
+                        value={sysConfig.heroVideoId}
+                        onChange={(e) =>
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            heroVideoId: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-mono focus:outline-hidden focus:border-[#C4956A]"
+                      />
+                      <p className="text-[10px] text-[#76726E]">
+                        Enter YouTube video ID or full video embed URL.
+                      </p>
+                    </div>
+                  )}
                 </div>
               )}
 
-              {/* TAB 2: SHIPPING & TAX RATES */}
+              {/* TAB 2: SHIPPING & PAYMENT */}
               {activeTab === "shipping" && (
                 <div className="flex flex-col gap-5">
                   <div className="pb-3 border-b border-[#EAE8E4]">
                     <h2 className="font-heading text-base font-bold uppercase tracking-wider text-[#151413]">
-                      Currency, Shipping & Tax Defaults
+                      Delivery & Payment Environment
                     </h2>
                     <p className="text-[#76726E] text-xs mt-0.5">
-                      Configure checkout calculations, logistics rates, and
-                      active taxes.
+                      Set logistics parameters and active Paystack gateway mode.
                     </p>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
-                        Store Currency Code
-                      </label>
-                      <input
-                        type="text"
-                        value={settings.currency}
-                        onChange={(e) =>
-                          setSettings({ ...settings, currency: e.target.value })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md uppercase font-bold"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
-                        Currency Symbol
-                      </label>
-                      <input
-                        type="text"
-                        value={settings.currencySymbol}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            currencySymbol: e.target.value,
-                          })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold"
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
-                        <LuPercent className="w-3.5 h-3.5 text-[#C4956A]" /> Tax
-                        / VAT Rate (%)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        value={settings.taxRate}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            taxRate: Number(e.target.value),
-                          })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold"
-                      />
-                    </div>
-                  </div>
-
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div className="flex flex-col gap-1.5">
-                      <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
-                        <LuDollarSign className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
-                        Default Delivery Fee (₦)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={settings.defaultShippingFee}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            defaultShippingFee: Number(e.target.value),
-                          })
-                        }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold"
-                      />
-                    </div>
-
                     <div className="flex flex-col gap-1.5">
                       <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
                         <LuTruck className="w-3.5 h-3.5 text-[#C4956A]" /> Free
@@ -375,115 +384,44 @@ export default function AdminSettingsPage() {
                       <input
                         type="number"
                         min="0"
-                        value={settings.freeShippingThreshold || 0}
+                        value={sysConfig.minFreeDeliveryFare}
                         onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            freeShippingThreshold: Number(e.target.value),
-                          })
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            minFreeDeliveryFare: Number(e.target.value),
+                          }))
                         }
-                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold"
+                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold focus:outline-hidden focus:border-[#C4956A]"
                       />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* TAB 3: SYSTEM CONTROLS & MAINTENANCE */}
-              {activeTab === "controls" && (
-                <div className="flex flex-col gap-5">
-                  <div className="pb-3 border-b border-[#EAE8E4]">
-                    <h2 className="font-heading text-base font-bold uppercase tracking-wider text-[#151413]">
-                      Platform Operations & Mode
-                    </h2>
-                    <p className="text-[#76726E] text-xs mt-0.5">
-                      Control storefront availability, checkout restrictions,
-                      and order processing behavior.
-                    </p>
-                  </div>
-
-                  {/* Maintenance Mode Alert Box */}
-                  <div
-                    className={`p-4 rounded-md border flex items-start gap-3 ${
-                      settings.maintenanceMode
-                        ? "bg-rose-50 border-rose-200 text-rose-800"
-                        : "bg-[#FAF9F6] border-[#EAE8E4] text-[#151413]"
-                    }`}
-                  >
-                    <LuShieldAlert className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
-                    <div className="flex-1">
-                      <h4 className="font-bold text-xs">
-                        Store Maintenance Mode
-                      </h4>
-                      <p className="text-[11px] text-[#76726E] mt-0.5">
-                        Enabling maintenance mode temporarily locks public
-                        customer checkout and displays a service status notice.
+                      <p className="text-[10px] text-[#76726E]">
+                        Cart totals equal to or exceeding this amount qualify
+                        for free delivery.
                       </p>
-                      <label className="flex items-center gap-2 mt-3 cursor-pointer">
-                        <input
-                          type="checkbox"
-                          checked={settings.maintenanceMode}
-                          onChange={(e) =>
-                            setSettings({
-                              ...settings,
-                              maintenanceMode: e.target.checked,
-                            })
-                          }
-                          className="w-4 h-4 accent-rose-600 rounded-xs cursor-pointer"
-                        />
-                        <span className="font-bold text-xs text-rose-700">
-                          Activate Maintenance Mode
-                        </span>
-                      </label>
                     </div>
-                  </div>
 
-                  <div className="flex flex-col gap-4 pt-2">
-                    <label className="flex items-center justify-between p-3.5 bg-[#FAF9F6] rounded-md border border-[#EAE8E4] cursor-pointer">
-                      <div>
-                        <span className="font-bold text-xs text-[#151413]">
-                          Allow Guest Checkout
-                        </span>
-                        <p className="text-[11px] text-[#76726E]">
-                          Permit customers to place orders without forcing
-                          account registration
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={settings.allowGuestCheckout}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
+                        <LuCreditCard className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
+                        Paystack Environment
+                      </label>
+                      <select
+                        value={sysConfig.paymentEnv}
                         onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            allowGuestCheckout: e.target.checked,
-                          })
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            paymentEnv: e.target.value,
+                          }))
                         }
-                        className="w-4 h-4 accent-[#C4956A] rounded-xs cursor-pointer"
-                      />
-                    </label>
-
-                    <label className="flex items-center justify-between p-3.5 bg-[#FAF9F6] rounded-md border border-[#EAE8E4] cursor-pointer">
-                      <div>
-                        <span className="font-bold text-xs text-[#151413]">
-                          Auto-Approve Orders
-                        </span>
-                        <p className="text-[11px] text-[#76726E]">
-                          Automatically transition paid orders to processing
-                          without manual admin confirmation
-                        </p>
-                      </div>
-                      <input
-                        type="checkbox"
-                        checked={settings.autoApproveOrders}
-                        onChange={(e) =>
-                          setSettings({
-                            ...settings,
-                            autoApproveOrders: e.target.checked,
-                          })
-                        }
-                        className="w-4 h-4 accent-[#C4956A] rounded-xs cursor-pointer"
-                      />
-                    </label>
+                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold cursor-pointer focus:outline-hidden focus:border-[#C4956A]"
+                      >
+                        <option value="test">Test / Sandbox Mode</option>
+                        <option value="live">Live Production Mode</option>
+                      </select>
+                      <p className="text-[10px] text-[#76726E]">
+                        Controls which Paystack secret API key is used during
+                        transactions.
+                      </p>
+                    </div>
                   </div>
                 </div>
               )}
@@ -495,7 +433,7 @@ export default function AdminSettingsPage() {
                   disabled={saving || loading}
                   className="px-6 py-2.5 bg-[#171514] text-white text-xs font-bold uppercase tracking-wider rounded-md hover:bg-[#2A2725] transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
                 >
-                  <LuCheck className="w-4 h-4 text-[#C4956A]" /> Save Store
+                  <LuCheck className="w-4 h-4 text-[#C4956A]" /> Save
                   Preferences
                 </button>
               </div>

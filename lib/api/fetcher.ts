@@ -31,6 +31,23 @@ export async function fetcher<T>(
     const error = await res
       .json()
       .catch(() => ({ message: "An unexpected error occurred" }));
+
+    // Intercept 401 Unauthorized (Expired / Invalid Token)
+    if (res.status === 401) {
+      Cookies.remove(TOKEN_COOKIE_NAME);
+
+      if (
+        typeof window !== "undefined" &&
+        window.location.pathname.startsWith("/admin")
+      ) {
+        window.location.href = `/login?redirect=${encodeURIComponent(
+          window.location.pathname,
+        )}`;
+      }
+
+      throw new Error("Session expired or unauthorized. Please log in again.");
+    }
+
     throw new Error(
       Array.isArray(error.message)
         ? error.message.join(", ")

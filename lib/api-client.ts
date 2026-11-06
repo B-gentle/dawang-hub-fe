@@ -6,7 +6,7 @@ import { ordersApi } from "./api/orders-api";
 import { usersApi } from "./api/users-api";
 import { adminApi } from "./api/admin-api";
 import { analyticsApi } from "./api/analytics-api";
-import { settingsApi } from "./api/settings-api";
+import { systemConfigApi } from "./api/system-config-api";
 import { helpCenterApi } from "./api/help-center-api";
 
 export * from "./api/fetcher";
@@ -19,7 +19,7 @@ export {
   usersApi,
   adminApi,
   analyticsApi,
-  settingsApi,
+  systemConfigApi,
   helpCenterApi,
 };
 
@@ -32,6 +32,6 @@ export const apiClient = {
   ...usersApi,
   ...adminApi,
   ...analyticsApi,
-  ...settingsApi,
+  ...systemConfigApi,
   ...helpCenterApi,
 };
