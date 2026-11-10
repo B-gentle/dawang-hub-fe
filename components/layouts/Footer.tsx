@@ -1,9 +1,11 @@
 "use client";
 
-import { useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { FaInstagram } from "react-icons/fa";
 import { BsChat } from "react-icons/bs";
+import { systemConfigApi, SystemConfig } from "@/lib/api/system-config-api";
 
 const emptySubscribe = () => () => {};
 const getYearSnapshot = () => new Date().getFullYear();
@@ -16,14 +18,75 @@ const Footer = () => {
     getServerYearSnapshot,
   );
 
+  const [sysConfig, setSysConfig] = useState<
+    Pick<
+      SystemConfig,
+      | "siteName"
+      | "logoUrl"
+      | "contactAddress"
+      | "location"
+      | "businessHours"
+      | "whatsappContact"
+    >
+  >({
+    siteName: "Bee Technologies",
+    logoUrl: "",
+    contactAddress: "",
+    location: "Port Harcourt, Nigeria",
+    businessHours: "Mon — Sat, 9am — 6pm",
+    whatsappContact: "",
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+    systemConfigApi
+      .getPublicConfig()
+      .then((config) => {
+        if (isMounted && config) {
+          setSysConfig({
+            siteName: config.siteName || "Bee Technologies",
+            logoUrl: config.logoUrl || "",
+            contactAddress: config.contactAddress || "",
+            location: config.location || "Port Harcourt, Nigeria",
+            businessHours: config.businessHours || "Mon — Sat, 9am — 6pm",
+            whatsappContact: config.whatsappContact || "",
+          });
+        }
+      })
+      .catch((err) => {
+        console.warn("Failed to fetch system config for footer:", err);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const whatsappLink = sysConfig.whatsappContact
+    ? `https://wa.me/${sysConfig.whatsappContact.replace(/\D/g, "")}`
+    : "#contact-info";
+
   return (
     <footer className="w-full bg-[#FAF9F6] text-[#2D2B2A] border-t border-border mt-auto font-sans">
       <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
         {/* Brand Section */}
         <div className="flex flex-col gap-6">
-          <h2 className="font-heading text-2xl font-bold tracking-[0.15em] text-[#1A1A1A]">
-            DAWANGHUB
-          </h2>
+          {sysConfig.logoUrl ? (
+            <div className="relative w-36 h-12">
+              <Image
+                src={sysConfig.logoUrl}
+                alt={sysConfig.siteName}
+                fill
+                className="object-contain object-left"
+                unoptimized
+              />
+            </div>
+          ) : (
+            <h2 className="font-heading text-2xl font-bold tracking-[0.15em] text-[#1A1A1A] uppercase">
+              {sysConfig.siteName}
+            </h2>
+          )}
+
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
             Modern fashion and beauty essentials for the woman becoming
             everything she imagined.
@@ -39,7 +102,9 @@ const Footer = () => {
               <FaInstagram className="w-4 h-4" />
             </Link>
             <Link
-              href="#contact-info"
+              href={whatsappLink}
+              target={sysConfig.whatsappContact ? "_blank" : "_self"}
+              rel="noopener noreferrer"
               className="p-2.5 rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-foreground transition-all duration-200"
               aria-label="Chat with Us"
             >
@@ -136,16 +201,31 @@ const Footer = () => {
             CONTACT
           </h3>
           <ul className="flex flex-col gap-3 text-sm text-muted-foreground">
-            <li className="text-muted-foreground">Port Harcourt, Nigeria</li>
-            <li>
-              <Link
-                href="mailto:essangrebecca876@gmail.com"
-                className="hover:text-foreground transition-colors duration-200"
-              >
-                essangrebecca876@gmail.com
-              </Link>
-            </li>
-            <li className="text-muted-foreground">Mon — Sat, 9am — 6pm</li>
+            {sysConfig.contactAddress && (
+              <li className="text-muted-foreground">
+                {sysConfig.contactAddress}
+              </li>
+            )}
+            {sysConfig.location && (
+              <li className="text-muted-foreground">{sysConfig.location}</li>
+            )}
+            {sysConfig.whatsappContact && (
+              <li>
+                <a
+                  href={`https://wa.me/${sysConfig.whatsappContact.replace(/\D/g, "")}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="hover:text-foreground transition-colors duration-200"
+                >
+                  {sysConfig.whatsappContact}
+                </a>
+              </li>
+            )}
+            {sysConfig.businessHours && (
+              <li className="text-muted-foreground">
+                {sysConfig.businessHours}
+              </li>
+            )}
           </ul>
         </div>
       </div>
@@ -154,7 +234,8 @@ const Footer = () => {
       <div className="w-full border-t border-[#EAE8E4]/60 bg-[#FAF9F6]">
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-widest text-[#76726E] uppercase">
           <div>
-            © {currentYear} DAWANGHUB OFFICIAL STORE. ALL RIGHTS RESERVED.
+            © {currentYear} {sysConfig.siteName.toUpperCase()}. ALL RIGHTS
+            RESERVED.
           </div>
           <div className="flex gap-4 md:gap-6 items-center">
             <Link

@@ -17,7 +17,7 @@ import {
 } from "react-icons/fi";
 import { useWishlist } from "@/context/WishlistContext";
 import { useCart } from "@/context/CartContext";
-import { systemConfigApi } from "@/lib/api/system-config-api";
+import { systemConfigApi, SystemConfig } from "@/lib/api/system-config-api";
 
 const NAV_LINKS = [
   { label: "Shop", href: "/shop" },
@@ -33,14 +33,21 @@ const SiteHeader = () => {
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
-  const [freeShippingThreshold, setFreeShippingThreshold] = useState<number>(0);
+
+  const [sysConfig, setSysConfig] = useState<
+    Pick<SystemConfig, "siteName" | "logoUrl" | "minFreeDeliveryFare">
+  >({
+    siteName: "Betime Technologies",
+    logoUrl: "",
+    minFreeDeliveryFare: 150000,
+  });
 
   const { wishlist, isMounted } = useWishlist();
   const { totalItems, openCart } = useCart();
 
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
-  // Fetch free shipping threshold from System Config & set auth status
+  // Fetch System Config & set Auth Status
   useEffect(() => {
     let isMountedFlag = true;
 
@@ -53,8 +60,12 @@ const SiteHeader = () => {
     systemConfigApi
       .getPublicConfig()
       .then((config) => {
-        if (isMountedFlag && config?.minFreeDeliveryFare) {
-          setFreeShippingThreshold(Number(config.minFreeDeliveryFare));
+        if (isMountedFlag && config) {
+          setSysConfig({
+            siteName: config.siteName || "Betime Technologies",
+            logoUrl: config.logoUrl || "",
+            minFreeDeliveryFare: Number(config.minFreeDeliveryFare) || 150000,
+          });
         }
       })
       .catch((err) => {
@@ -65,6 +76,11 @@ const SiteHeader = () => {
       isMountedFlag = false;
     };
   }, []);
+
+  // Split site name into primary title and subtitle
+  const nameParts = sysConfig.siteName.trim().split(" ");
+  const mainTitle = nameParts[0] || "DAWANG";
+  const subTitle = nameParts.slice(1).join(" ") || "STORES";
 
   // Use hydration-safe flags
   const userHref = isMounted && isLoggedIn ? "/account" : "/login";
@@ -83,7 +99,8 @@ const SiteHeader = () => {
       {/* Top Announcement Bar */}
       <div className="w-full bg-[#151413] text-white text-[9px] sm:text-[10px] font-bold tracking-[0.15em] sm:tracking-[0.2em] py-2 text-center flex items-center justify-center gap-1.5 px-3">
         <span className="truncate">
-          FREE DELIVERY ON ORDERS OVER ₦{freeShippingThreshold.toLocaleString()}
+          FREE DELIVERY ON ORDERS OVER ₦
+          {sysConfig.minFreeDeliveryFare.toLocaleString()}
         </span>
         <span className="text-white/40 hidden sm:inline">•</span>
         <Link
@@ -110,24 +127,25 @@ const SiteHeader = () => {
             )}
           </button>
 
-          {/* Desktop Logo */}
+          {/* Desktop Logo & Stacked Two-Line Site Name */}
           <Link href="/" className="hidden sm:flex items-center gap-2">
             <div className="relative w-14 h-14 overflow-hidden shrink-0">
               <Image
-                src="/logo-nobg.png"
-                alt="Dawang Stores Logo"
+                src={sysConfig.logoUrl || "/logo-nobg.png"}
+                alt={`${sysConfig.siteName} Logo`}
                 fill
                 className="object-contain"
                 priority
+                unoptimized={Boolean(sysConfig.logoUrl)}
               />
             </div>
 
             <div className="flex flex-col">
-              <span className="font-heading text-lg font-bold tracking-[0.18em] text-[#151413] leading-none">
-                DAWANG
+              <span className="font-heading text-lg font-bold tracking-[0.18em] text-[#151413] leading-none uppercase">
+                {mainTitle}
               </span>
               <span className="text-[7.5px] font-bold tracking-[0.25em] uppercase text-[#C4956A] mt-0.5">
-                STORES
+                {subTitle}
               </span>
             </div>
           </Link>
@@ -191,11 +209,12 @@ const SiteHeader = () => {
           <Link href="/" className="flex items-center">
             <div className="relative w-14 h-14 overflow-hidden shrink-0">
               <Image
-                src="/logo-nobg.png"
-                alt="Dawang Stores Logo"
+                src={sysConfig.logoUrl || "/logo-nobg.png"}
+                alt={`${sysConfig.siteName} Logo`}
                 fill
                 className="object-contain"
                 priority
+                unoptimized={Boolean(sysConfig.logoUrl)}
               />
             </div>
           </Link>
