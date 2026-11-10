@@ -27,7 +27,7 @@ export default function Hero({
   secondaryCtaText = "View Clothing",
   secondaryCtaHref = "/shop?category=clothes",
 }: HeroProps) {
-  const [config, setConfig] = useState<SystemConfig>({
+  const [config, setConfig] = useState<Partial<SystemConfig>>({
     heroType: HeroType.VIDEO,
     heroImages: [],
     heroVideoId: "t1Nbqpse8kc",
