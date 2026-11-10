@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import {
+  LuGlobe,
   LuTruck,
   LuSave,
   LuRefreshCw,
@@ -11,6 +12,10 @@ import {
   LuTrash2,
   LuVideo,
   LuCreditCard,
+  LuMapPin,
+  LuClock,
+  LuPhone,
+  LuBuilding,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import {
@@ -20,13 +25,21 @@ import {
 } from "@/lib/api/system-config-api";
 
 export default function AdminSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"hero" | "shipping">("hero");
+  const [activeTab, setActiveTab] = useState<"general" | "hero" | "shipping">(
+    "general",
+  );
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
 
-  // System Configuration state connected directly to system-config-api
   const [sysConfig, setSysConfig] = useState<SystemConfig>({
+    siteName: "Dawang Stores",
+    logoUrl: "",
+    contactAddress: "",
+    location: "Lagos, Nigeria",
+    businessHours: "Mon - Sat: 9:00 AM - 8:00 PM",
+    whatsappContact: "",
     heroType: HeroType.IMAGE,
     heroImages: [],
     heroVideoId: "",
@@ -40,6 +53,12 @@ export default function AdminSettingsPage() {
       const data = await systemConfigApi.getPublicConfig();
       if (data) {
         setSysConfig({
+          siteName: data.siteName || "Dawang Stores",
+          logoUrl: data.logoUrl || "",
+          contactAddress: data.contactAddress || "",
+          location: data.location || "Lagos, Nigeria",
+          businessHours: data.businessHours || "Mon - Sat: 9:00 AM - 8:00 PM",
+          whatsappContact: data.whatsappContact || "",
           heroType: data.heroType || HeroType.IMAGE,
           heroImages: data.heroImages || [],
           heroVideoId: data.heroVideoId || "",
@@ -74,7 +93,6 @@ export default function AdminSettingsPage() {
     try {
       setSaving(true);
 
-      // Ensure heroImages is explicitly a clean string array
       const cleanedHeroImages = Array.isArray(sysConfig.heroImages)
         ? sysConfig.heroImages.filter(
             (img) => typeof img === "string" && img.trim() !== "",
@@ -82,6 +100,12 @@ export default function AdminSettingsPage() {
         : [];
 
       const updated = await systemConfigApi.updateSystemConfig({
+        siteName: sysConfig.siteName,
+        logoUrl: sysConfig.logoUrl,
+        contactAddress: sysConfig.contactAddress,
+        location: sysConfig.location,
+        businessHours: sysConfig.businessHours,
+        whatsappContact: sysConfig.whatsappContact,
         heroType: sysConfig.heroType,
         heroImages: cleanedHeroImages,
         heroVideoId: sysConfig.heroVideoId || "",
@@ -90,6 +114,12 @@ export default function AdminSettingsPage() {
       });
 
       setSysConfig({
+        siteName: updated.siteName || "Dawang Stores",
+        logoUrl: updated.logoUrl || "",
+        contactAddress: updated.contactAddress || "",
+        location: updated.location || "",
+        businessHours: updated.businessHours || "",
+        whatsappContact: updated.whatsappContact || "",
         heroType: updated.heroType || HeroType.IMAGE,
         heroImages: Array.isArray(updated.heroImages) ? updated.heroImages : [],
         heroVideoId: updated.heroVideoId || "",
@@ -107,6 +137,50 @@ export default function AdminSettingsPage() {
     }
   };
 
+  // Logo File Upload
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setUploadingLogo(true);
+      toast.info("Uploading logo to Cloudinary...");
+      const res = await systemConfigApi.uploadSystemImage(file);
+
+      if (!res.url || typeof res.url !== "string") {
+        throw new Error("Invalid image URL returned from server");
+      }
+
+      setSysConfig((prev) => ({
+        ...prev,
+        logoUrl: res.url,
+      }));
+      toast.success("Logo uploaded successfully");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Upload failed";
+      toast.error(msg);
+    } finally {
+      setUploadingLogo(false);
+      e.target.value = "";
+    }
+  };
+
+  const handleRemoveLogo = async () => {
+    if (!sysConfig.logoUrl) return;
+    try {
+      await systemConfigApi.deleteSystemImage(sysConfig.logoUrl);
+      setSysConfig((prev) => ({
+        ...prev,
+        logoUrl: "",
+      }));
+      toast.success("Logo removed");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Failed to delete logo";
+      toast.error(msg);
+    }
+  };
+
+  // Hero File Upload
   const handleHeroFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -119,8 +193,8 @@ export default function AdminSettingsPage() {
     }
 
     try {
-      setUploadingImage(true);
-      toast.info("Uploading image to Cloudinary...");
+      setUploadingHeroImage(true);
+      toast.info("Uploading hero image to Cloudinary...");
       const res = await systemConfigApi.uploadSystemImage(file);
 
       if (!res.url || typeof res.url !== "string") {
@@ -136,7 +210,7 @@ export default function AdminSettingsPage() {
       const msg = err instanceof Error ? err.message : "Upload failed";
       toast.error(msg);
     } finally {
-      setUploadingImage(false);
+      setUploadingHeroImage(false);
       e.target.value = "";
     }
   };
@@ -167,8 +241,8 @@ export default function AdminSettingsPage() {
             System Settings
           </h1>
           <p className="text-sm text-[#76726E] mt-1">
-            Configure homepage hero media, delivery free-fare thresholds, and
-            payment environments.
+            Manage site branding, contact information, hero banner media, and
+            payment options.
           </p>
         </div>
 
@@ -195,6 +269,17 @@ export default function AdminSettingsPage() {
         <div className="flex flex-col md:flex-row gap-8">
           {/* Settings Navigation Sidebar */}
           <aside className="w-full md:w-64 shrink-0 flex flex-col gap-1">
+            <button
+              onClick={() => setActiveTab("general")}
+              className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
+                activeTab === "general"
+                  ? "bg-[#171514] text-white"
+                  : "bg-white text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6] border border-[#EAE8E4]"
+              }`}
+            >
+              <LuGlobe className="w-4 h-4 text-[#C4956A]" /> General Details
+            </button>
+
             <button
               onClick={() => setActiveTab("hero")}
               className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
@@ -224,7 +309,174 @@ export default function AdminSettingsPage() {
               onSubmit={handleSaveSettings}
               className="flex flex-col gap-6 text-xs text-[#151413]"
             >
-              {/* TAB 1: HERO BANNER MEDIA */}
+              {/* TAB 1: GENERAL DETAILS */}
+              {activeTab === "general" && (
+                <div className="flex flex-col gap-5">
+                  <div className="pb-3 border-b border-[#EAE8E4]">
+                    <h2 className="font-heading text-base font-bold uppercase tracking-wider text-[#151413]">
+                      General Information
+                    </h2>
+                    <p className="text-[#76726E] text-xs mt-0.5">
+                      Configure store identity, branding logo, and customer
+                      support channels.
+                    </p>
+                  </div>
+
+                  {/* Logo Upload Section */}
+                  <div className="flex flex-col gap-2">
+                    <label className="font-bold uppercase tracking-wider text-[#76726E]">
+                      Store Logo
+                    </label>
+                    <div className="flex items-center gap-4">
+                      {sysConfig.logoUrl ? (
+                        <div className="relative w-24 h-24 rounded-md border border-[#EAE8E4] p-2 bg-[#FAF9F6] overflow-hidden group flex items-center justify-center">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={sysConfig.logoUrl}
+                            alt="Store Logo"
+                            className="w-full h-full object-contain"
+                          />
+                          <button
+                            type="button"
+                            onClick={handleRemoveLogo}
+                            className="absolute top-1 right-1 p-1 bg-rose-600 text-white rounded-md cursor-pointer opacity-90 hover:opacity-100 transition-opacity"
+                            title="Remove logo"
+                          >
+                            <LuTrash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ) : (
+                        <label className="flex flex-col items-center justify-center w-36 h-24 border-2 border-dashed border-[#EAE8E4] rounded-md cursor-pointer bg-[#FAF9F6] hover:bg-[#FAF5EF] transition-colors">
+                          {uploadingLogo ? (
+                            <LuRefreshCw className="w-5 h-5 animate-spin text-[#C4956A]" />
+                          ) : (
+                            <>
+                              <LuUpload className="w-5 h-5 text-[#C4956A] mb-1" />
+                              <span className="text-[10px] font-bold text-[#151413]">
+                                Upload Logo
+                              </span>
+                            </>
+                          )}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            disabled={uploadingLogo}
+                            onChange={handleLogoUpload}
+                            className="hidden"
+                          />
+                        </label>
+                      )}
+                      <p className="text-[10px] text-[#76726E] max-w-xs">
+                        Recommended PNG or SVG format with transparent
+                        background (Max 2MB).
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    {/* Site Name */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
+                        <LuBuilding className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
+                        Store Title / Site Name
+                      </label>
+                      <input
+                        type="text"
+                        value={sysConfig.siteName}
+                        onChange={(e) =>
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            siteName: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold focus:outline-hidden focus:border-[#C4956A]"
+                      />
+                    </div>
+
+                    {/* WhatsApp Contact */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
+                        <LuPhone className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
+                        WhatsApp Support Contact
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., +2348000000000"
+                        value={sysConfig.whatsappContact}
+                        onChange={(e) =>
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            whatsappContact: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-mono focus:outline-hidden focus:border-[#C4956A]"
+                      />
+                    </div>
+
+                    {/* Location */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
+                        <LuMapPin className="w-3.5 h-3.5 text-[#C4956A]" /> City
+                        / Country Location
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Lagos, Nigeria"
+                        value={sysConfig.location}
+                        onChange={(e) =>
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            location: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
+                      />
+                    </div>
+
+                    {/* Business Hours */}
+                    <div className="flex flex-col gap-1.5">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
+                        <LuClock className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
+                        Business Working Hours
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="e.g., Mon - Sat: 9:00 AM - 8:00 PM"
+                        value={sysConfig.businessHours}
+                        onChange={(e) =>
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            businessHours: e.target.value,
+                          }))
+                        }
+                        className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Physical Address */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
+                      <LuMapPin className="w-3.5 h-3.5 text-[#C4956A]" /> Full
+                      Contact Address
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="e.g., 12 Luxury Ave, Victoria Island, Lagos"
+                      value={sysConfig.contactAddress}
+                      onChange={(e) =>
+                        setSysConfig((prev) => ({
+                          ...prev,
+                          contactAddress: e.target.value,
+                        }))
+                      }
+                      className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 2: HERO BANNER MEDIA */}
               {activeTab === "hero" && (
                 <div className="flex flex-col gap-5">
                   <div className="pb-3 border-b border-[#EAE8E4]">
@@ -314,7 +566,7 @@ export default function AdminSettingsPage() {
 
                         {sysConfig.heroImages.length < 4 && (
                           <label className="flex flex-col items-center justify-center aspect-video border-2 border-dashed border-[#EAE8E4] rounded-md cursor-pointer bg-[#FAF9F6] hover:bg-[#FAF5EF] transition-colors">
-                            {uploadingImage ? (
+                            {uploadingHeroImage ? (
                               <LuRefreshCw className="w-5 h-5 animate-spin text-[#C4956A]" />
                             ) : (
                               <>
@@ -327,7 +579,7 @@ export default function AdminSettingsPage() {
                             <input
                               type="file"
                               accept="image/*"
-                              disabled={uploadingImage}
+                              disabled={uploadingHeroImage}
                               onChange={handleHeroFileUpload}
                               className="hidden"
                             />
@@ -363,7 +615,7 @@ export default function AdminSettingsPage() {
                 </div>
               )}
 
-              {/* TAB 2: SHIPPING & PAYMENT */}
+              {/* TAB 3: SHIPPING & PAYMENT */}
               {activeTab === "shipping" && (
                 <div className="flex flex-col gap-5">
                   <div className="pb-3 border-b border-[#EAE8E4]">

@@ -6,6 +6,12 @@ export enum HeroType {
 }
 
 export interface SystemConfig {
+  siteName: string;
+  logoUrl: string;
+  contactAddress: string;
+  location: string;
+  businessHours: string;
+  whatsappContact: string;
   heroType: HeroType;
   heroImages: string[];
   heroVideoId: string;
