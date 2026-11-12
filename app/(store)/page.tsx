@@ -5,6 +5,7 @@ import { apiClient } from "@/lib/api-client";
 import { Product } from "@/types/product";
 import ProductGrid from "@/components/products/ProductGrid";
 import Hero from "@/components/home/Hero";
+import BecomeVendorCta from "@/components/home/Becomevendorcta";
 
 interface PaginatedResponse<T> {
   items?: T[];
@@ -92,7 +93,7 @@ export default function HomePage() {
       </section>
 
       {/* Banner Break */}
-      <section className="bg-[#FAF9F6] border-y border-[#EAE8E4] py-12 px-4 sm:px-6 text-center">
+      {/* <section className="bg-[#FAF9F6] border-y border-[#EAE8E4] py-12 px-4 sm:px-6 text-center">
         <div className="max-w-4xl mx-auto flex flex-col items-center gap-3">
           <span className="text-[10px] font-bold text-[#C4956A] uppercase tracking-[0.25em]">
             HANDPICKED FOR YOU
@@ -105,7 +106,7 @@ export default function HomePage() {
             express your style with confidence.
           </p>
         </div>
-      </section>
+      </section> */}
 
       {/* 2. Popular Products Section Anchor */}
       <section id="popular-products" className="scroll-mt-20">
@@ -128,6 +129,8 @@ export default function HomePage() {
           viewAllHref="/shop"
         />
       </section>
+
+      <BecomeVendorCta />
     </div>
   );
 }
