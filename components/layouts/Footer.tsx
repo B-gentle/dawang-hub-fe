@@ -233,10 +233,7 @@ const Footer = () => {
       {/* Footer Bottom Bar */}
       <div className="w-full border-t border-[#EAE8E4]/60 bg-[#FAF9F6]">
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-widest text-[#76726E] uppercase">
-          <div>
-            © {currentYear} {sysConfig.siteName.toUpperCase()}. ALL RIGHTS
-            RESERVED.
-          </div>
+          <div>© {currentYear} Betime Technologies. ALL RIGHTS RESERVED.</div>
           <div className="flex gap-4 md:gap-6 items-center">
             <Link
               href="/#privacy"
