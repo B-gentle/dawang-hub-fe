@@ -8,6 +8,8 @@ import { adminApi } from "./api/admin-api";
 import { analyticsApi } from "./api/analytics-api";
 import { systemConfigApi } from "./api/system-config-api";
 import { helpCenterApi } from "./api/help-center-api";
+import { vendorApi } from "./api/vendor-api";
+import { paymentsApi } from "./api/payments-api";
 
 export * from "./api/fetcher";
 export {
@@ -21,6 +23,8 @@ export {
   analyticsApi,
   systemConfigApi,
   helpCenterApi,
+  vendorApi,
+  paymentsApi,
 };
 
 export const apiClient = {
@@ -34,4 +38,6 @@ export const apiClient = {
   ...analyticsApi,
   ...systemConfigApi,
   ...helpCenterApi,
+  ...vendorApi,
+  ...paymentsApi,
 };

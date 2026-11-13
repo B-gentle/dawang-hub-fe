@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import {
   LuStore,
@@ -15,19 +15,25 @@ import {
   LuClock,
   LuTruck,
   LuMonitor,
-  LuShoppingBag,
-  LuSearch,
-  LuUser,
+  LuEye,
+  LuX,
 } from "react-icons/lu";
-import { FaWhatsapp } from "react-icons/fa";
 import { toast } from "sonner";
 import { systemConfigApi, HeroType } from "@/lib/api/system-config-api";
+import { vendorApi } from "@/lib/api/vendor-api";
+import { StorefrontPreview } from "@/components/vendor/StorefrontPreview";
+import { BankAccountVerifier } from "@/components/vendor/BankAccountVerifier";
 
 export default function StoreSetupPage() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingHero, setUploadingHero] = useState(false);
+  const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+
+  // Bank Verification State
+  const [resolvingAccount, setResolvingAccount] = useState(false);
+  const [resolvedAccountName, setResolvedAccountName] = useState("");
 
   // Store & Config Form State
   const [formData, setFormData] = useState({
@@ -45,9 +51,19 @@ export default function StoreSetupPage() {
     businessHours: "Mon - Sat: 9:00 AM - 7:00 PM",
     whatsappContact: "+2348000000000",
     minFreeDeliveryFare: 150000,
+    bankCode: "",
+    bankName: "",
+    accountNumber: "",
   });
 
-  // Auto-generate URL slug when store name changes
+  const handleBankChange = useCallback((bankCode: string, bankName: string) => {
+    setFormData((prev) => ({ ...prev, bankCode, bankName }));
+  }, []);
+
+  const handleAccountNumberChange = useCallback((accountNumber: string) => {
+    setFormData((prev) => ({ ...prev, accountNumber }));
+  }, []);
+
   const handleNameChange = (value: string) => {
     const generatedSlug = value
       .toLowerCase()
@@ -62,10 +78,13 @@ export default function StoreSetupPage() {
     }));
   };
 
-  // Upload Store Logo
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+
+    const localPreviewUrl = URL.createObjectURL(file);
+    const previousLogo = formData.logoUrl;
+    setFormData((prev) => ({ ...prev, logoUrl: localPreviewUrl }));
 
     try {
       setUploadingLogo(true);
@@ -75,14 +94,15 @@ export default function StoreSetupPage() {
         toast.success("Store logo uploaded");
       }
     } catch (err) {
+      setFormData((prev) => ({ ...prev, logoUrl: previousLogo }));
       toast.error(err instanceof Error ? err.message : "Logo upload failed");
     } finally {
+      URL.revokeObjectURL(localPreviewUrl);
       setUploadingLogo(false);
       e.target.value = "";
     }
   };
 
-  // Upload Hero Banner Image (Max 4)
   const handleHeroImageUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -94,66 +114,101 @@ export default function StoreSetupPage() {
       return;
     }
 
+    const localPreviewUrl = URL.createObjectURL(file);
+    setFormData((prev) => ({
+      ...prev,
+      heroImages: [...prev.heroImages, localPreviewUrl],
+    }));
+
     try {
       setUploadingHero(true);
       const res = await systemConfigApi.uploadSystemImage(file);
       if (res.url) {
         setFormData((prev) => ({
           ...prev,
-          heroImages: [...prev.heroImages, res.url],
+          heroImages: prev.heroImages.map((img) =>
+            img === localPreviewUrl ? res.url : img,
+          ),
         }));
         toast.success("Hero image added");
       }
     } catch (err) {
+      setFormData((prev) => ({
+        ...prev,
+        heroImages: prev.heroImages.filter((img) => img !== localPreviewUrl),
+      }));
       toast.error(err instanceof Error ? err.message : "Image upload failed");
     } finally {
+      URL.revokeObjectURL(localPreviewUrl);
       setUploadingHero(false);
       e.target.value = "";
     }
   };
 
   const handleRemoveHeroImage = async (url: string) => {
-    try {
-      await systemConfigApi.deleteSystemImage(url);
-      setFormData((prev) => ({
-        ...prev,
-        heroImages: prev.heroImages.filter((img) => img !== url),
-      }));
-    } catch {
-      // Remove locally even if cleanup fails
-      setFormData((prev) => ({
-        ...prev,
-        heroImages: prev.heroImages.filter((img) => img !== url),
-      }));
+    setFormData((prev) => ({
+      ...prev,
+      heroImages: prev.heroImages.filter((img) => img !== url),
+    }));
+
+    if (!url.startsWith("blob:")) {
+      try {
+        await systemConfigApi.deleteSystemImage(url);
+      } catch {
+        // Ignore cleanup failure
+      }
     }
   };
 
-  // Submit Store Creation
   const handleCreateStore = async (e: React.FormEvent) => {
     e.preventDefault();
+
     if (!formData.siteName.trim() || !formData.slug.trim()) {
       toast.error("Store name and URL slug are required");
       return;
     }
 
+    if (!formData.bankCode || !/^\d{10}$/.test(formData.accountNumber)) {
+      toast.error("Select a bank and enter a valid 10-digit account number");
+      return;
+    }
+
+    if (!resolvedAccountName) {
+      toast.error("Please wait for your bank account name to be verified");
+      return;
+    }
+
+    if (uploadingLogo || uploadingHero) {
+      toast.error("Please wait for image uploads to complete");
+      return;
+    }
+
     try {
       setSubmitting(true);
-      // Save configuration (connect to your multi-tenant vendor creation endpoint)
-      await systemConfigApi.updateSystemConfig({
-        siteName: formData.siteName,
-        logoUrl: formData.logoUrl,
-        contactAddress: formData.contactAddress,
-        location: formData.location,
-        businessHours: formData.businessHours,
-        whatsappContact: formData.whatsappContact,
-        heroType: formData.heroType,
-        heroImages: formData.heroImages,
-        heroVideoId: formData.heroVideoId,
-        minFreeDeliveryFare: Number(formData.minFreeDeliveryFare) || 0,
+      await vendorApi.onboardVendor({
+        storeName: formData.siteName,
+        slug: formData.slug,
+        description: formData.description,
+        logoUrl: formData.logoUrl || undefined,
+        whatsappNumber: formData.whatsappContact,
+        themeConfig: {
+          tagline: formData.tagline,
+          subtitle: formData.subtitle,
+          heroType: formData.heroType,
+          heroImages: formData.heroImages,
+          heroVideoId: formData.heroVideoId,
+          contactAddress: formData.contactAddress,
+          location: formData.location,
+          minFreeDeliveryFare: Number(formData.minFreeDeliveryFare) || 0,
+        },
+        businessHours: { summary: formData.businessHours },
+        bankCode: formData.bankCode,
+        bankName: formData.bankName,
+        accountNumber: formData.accountNumber,
       });
 
       toast.success("Your store has been launched!");
-      router.push("/admin");
+      router.push("/vendor/dashboard");
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to initialize store",
@@ -163,48 +218,64 @@ export default function StoreSetupPage() {
     }
   };
 
-  // Split siteName into stacked 2-line header format
-  const nameParts = (formData.siteName || "STORE NAME").trim().split(" ");
-  const previewMainTitle = nameParts[0] || "STORE";
-  const previewSubTitle = nameParts.slice(1).join(" ") || "OFFICIAL";
-
   const imageCount = formData.heroImages.length;
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "dawang.com";
+  const isSubmitDisabled =
+    submitting ||
+    resolvingAccount ||
+    !resolvedAccountName ||
+    uploadingLogo ||
+    uploadingHero;
 
   return (
-    <div className="min-h-screen bg-[#FAF9F6] text-[#151413] font-sans">
+    <div className="min-h-screen bg-[#FAF9F6] text-[#151413] font-sans pb-20 lg:pb-0">
       {/* Top Builder Bar */}
-      <div className="sticky top-0 z-40 bg-white border-b border-[#EAE8E4] px-4 sm:px-8 h-16 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-md bg-[#151413] text-[#C4956A] flex items-center justify-center">
+      <div className="sticky top-0 z-40 bg-white border-b border-[#EAE8E4] px-4 sm:px-8 h-16 flex items-center justify-between gap-3">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-8 h-8 rounded-md bg-[#151413] text-[#C4956A] flex items-center justify-center shrink-0">
             <LuStore className="w-4 h-4" />
           </div>
-          <div>
-            <h1 className="font-heading text-sm font-bold uppercase tracking-wider">
+          <div className="truncate">
+            <h1 className="font-heading text-sm font-bold uppercase tracking-wider truncate">
               Storefront Builder
             </h1>
-            <p className="text-[10px] text-[#76726E]">
+            <p className="text-[10px] text-[#76726E] truncate">
               Customize your e-commerce brand & live appearance
             </p>
           </div>
         </div>
 
-        <button
-          onClick={handleCreateStore}
-          disabled={submitting}
-          className="px-5 py-2.5 bg-[#151413] text-white text-xs font-bold uppercase tracking-widest rounded-md hover:bg-[#2A2725] transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
-        >
-          {submitting ? (
-            <LuRefreshCw className="w-4 h-4 animate-spin text-[#C4956A]" />
-          ) : (
-            <LuCheck className="w-4 h-4 text-[#C4956A]" />
-          )}
-          {submitting ? "Launching..." : "Launch Store"}
-        </button>
+        <div className="flex items-center gap-2 shrink-0">
+          {/* Mobile Header Preview Button */}
+          <button
+            type="button"
+            onClick={() => setMobilePreviewOpen(true)}
+            aria-label="Preview Storefront"
+            className="lg:hidden px-3 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] text-[#151413] text-xs font-bold uppercase tracking-wider rounded-md hover:border-[#C4956A] transition-colors flex items-center gap-1.5 cursor-pointer"
+          >
+            <LuEye className="w-4 h-4 text-[#C4956A]" />
+            <span>Preview</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={handleCreateStore}
+            disabled={isSubmitDisabled}
+            className="px-4 sm:px-5 py-2.5 bg-[#151413] text-white text-xs font-bold uppercase tracking-widest rounded-md hover:bg-[#2A2725] transition-colors flex items-center gap-2 cursor-pointer disabled:opacity-50"
+          >
+            {submitting ? (
+              <LuRefreshCw className="w-4 h-4 animate-spin text-[#C4956A]" />
+            ) : (
+              <LuCheck className="w-4 h-4 text-[#C4956A]" />
+            )}
+            <span>{submitting ? "Launching..." : "Launch"}</span>
+          </button>
+        </div>
       </div>
 
       {/* Main Split Workspace */}
       <div className="max-w-[1600px] mx-auto px-4 sm:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-        {/* LEFT SIDE: CONFIGURATION FORM (Full width on mobile, 5 cols on desktop) */}
+        {/* LEFT SIDE: CONFIGURATION FORM */}
         <form
           onSubmit={handleCreateStore}
           className="lg:col-span-5 flex flex-col gap-6 bg-white p-6 rounded-xl border border-[#EAE8E4] shadow-xs text-xs"
@@ -247,9 +318,40 @@ export default function StoreSetupPage() {
                   className="w-full px-3.5 py-2.5 bg-transparent font-mono text-xs focus:outline-hidden"
                 />
                 <span className="px-3 py-2.5 bg-[#EAE8E4]/50 text-[#76726E] font-mono text-[11px] shrink-0">
-                  .dawang.com
+                  .{rootDomain}
                 </span>
               </div>
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="font-bold uppercase tracking-wider text-[#76726E]">
+                Hero Headline (Tagline)
+              </label>
+              <input
+                type="text"
+                value={formData.tagline}
+                onChange={(e) =>
+                  setFormData((prev) => ({ ...prev, tagline: e.target.value }))
+                }
+                className="w-full px-3.5 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
+              />
+            </div>
+
+            <div className="flex flex-col gap-1.5">
+              <label className="font-bold uppercase tracking-wider text-[#76726E]">
+                Store Description
+              </label>
+              <textarea
+                rows={2}
+                value={formData.description}
+                onChange={(e) =>
+                  setFormData((prev) => ({
+                    ...prev,
+                    description: e.target.value,
+                  }))
+                }
+                className="w-full px-3.5 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
+              />
             </div>
 
             {/* Logo Upload */}
@@ -299,7 +401,7 @@ export default function StoreSetupPage() {
                 )}
                 <p className="text-[10px] text-[#76726E] leading-relaxed">
                   Transparent PNG recommended. Appears in your storefront header
-                  and footer[cite: 2, 11].
+                  and footer.
                 </p>
               </div>
             </div>
@@ -353,7 +455,7 @@ export default function StoreSetupPage() {
                 <div className="grid grid-cols-4 gap-2">
                   {formData.heroImages.map((img, i) => (
                     <div
-                      key={i}
+                      key={`${img}-${i}`}
                       className="relative aspect-square rounded-md overflow-hidden border border-[#EAE8E4]"
                     >
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -411,7 +513,7 @@ export default function StoreSetupPage() {
           </div>
 
           {/* 3. Contact & Logistics */}
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 pb-5 border-b border-[#EAE8E4]">
             <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413]">
               3. Contact & Logistics
             </h2>
@@ -505,16 +607,27 @@ export default function StoreSetupPage() {
             </div>
           </div>
 
+          {/* 4. Extracted Monnify Settlement Bank Verifier */}
+          <BankAccountVerifier
+            bankCode={formData.bankCode}
+            accountNumber={formData.accountNumber}
+            resolvedAccountName={resolvedAccountName}
+            onBankChange={handleBankChange}
+            onAccountNumberChange={handleAccountNumberChange}
+            onResolvedAccountChange={setResolvedAccountName}
+            onResolvingStateChange={setResolvingAccount}
+          />
+
           <button
             type="submit"
-            disabled={submitting}
-            className="w-full py-3.5 bg-[#151413] text-white font-bold uppercase tracking-widest rounded-md hover:bg-[#2A2725] transition-colors cursor-pointer"
+            disabled={isSubmitDisabled}
+            className="w-full py-3.5 bg-[#151413] text-white font-bold uppercase tracking-widest rounded-md hover:bg-[#2A2725] transition-colors cursor-pointer disabled:opacity-50"
           >
             {submitting ? "Creating Store..." : "Complete & Launch Store"}
           </button>
         </form>
 
-        {/* RIGHT SIDE: LIVE STOREFRONT PREVIEW (Desktop Only: hidden lg:block) */}
+        {/* RIGHT SIDE: LIVE STOREFRONT PREVIEW (Desktop) */}
         <div className="hidden lg:block lg:col-span-7 sticky top-24">
           <div className="flex items-center justify-between mb-2 px-1">
             <span className="text-[11px] font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1.5">
@@ -522,209 +635,74 @@ export default function StoreSetupPage() {
               Storefront Preview
             </span>
             <span className="text-[11px] font-mono text-[#76726E] bg-white px-2.5 py-0.5 rounded-full border border-[#EAE8E4]">
-              https://{formData.slug || "your-store"}.dawang.com
+              https://{formData.slug || "your-store"}.{rootDomain}
             </span>
           </div>
 
-          {/* Browser Mockup Frame */}
-          <div className="w-full rounded-xl border border-[#EAE8E4] bg-white shadow-xl overflow-hidden flex flex-col">
-            {/* Browser Top Chrome */}
-            <div className="bg-[#FAF9F6] border-b border-[#EAE8E4] px-4 py-2.5 flex items-center gap-2">
-              <div className="flex gap-1.5">
-                <span className="w-2.5 h-2.5 rounded-full bg-rose-400" />
-                <span className="w-2.5 h-2.5 rounded-full bg-amber-400" />
-                <span className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
-              </div>
-              <div className="flex-1 mx-4 bg-white border border-[#EAE8E4] rounded-md py-1 px-3 text-[10px] font-mono text-[#76726E] text-center truncate">
-                {formData.slug || "your-store"}.dawang.com
-              </div>
-            </div>
-
-            {/* Simulated Storefront Viewport */}
-            <div className="relative flex flex-col max-h-[760px] overflow-y-auto">
-              {/* 1. Preview Announcement Bar */}
-              <div className="w-full bg-[#151413] text-white text-[9px] font-bold tracking-[0.2em] py-1.5 text-center">
-                FREE DELIVERY ON ORDERS OVER ₦
-                {Number(formData.minFreeDeliveryFare || 0).toLocaleString()} •{" "}
-                <span className="underline">SHOP NOW</span>
-              </div>
-
-              {/* 2. Preview Site Header */}
-              <div className="px-6 h-16 border-b border-[#EAE8E4] bg-white flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  {formData.logoUrl ? (
-                    <div className="relative w-10 h-10 overflow-hidden shrink-0">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        src={formData.logoUrl}
-                        alt="Preview Logo"
-                        className="w-full h-full object-contain"
-                      />
-                    </div>
-                  ) : null}
-                  <div className="flex flex-col">
-                    <span className="font-heading text-sm font-bold tracking-[0.18em] text-[#151413] leading-none uppercase">
-                      {previewMainTitle}
-                    </span>
-                    <span className="text-[7px] font-bold tracking-[0.25em] uppercase text-[#C4956A] mt-0.5">
-                      {previewSubTitle}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-5 text-[9px] font-bold tracking-[0.18em] uppercase text-[#151413]">
-                  <span>Shop</span>
-                  <span>Wishlist</span>
-                  <span>Clothes</span>
-                  <span>Shoes</span>
-                </div>
-
-                <div className="flex items-center gap-3 text-[#151413]">
-                  <LuSearch className="w-4 h-4" />
-                  <LuUser className="w-4 h-4" />
-                  <LuShoppingBag className="w-4 h-4" />
-                </div>
-              </div>
-
-              {/* 3. Preview Hero Section */}
-              <div className="relative w-full h-[360px] bg-[#151413] text-white overflow-hidden flex items-center justify-center">
-                <div className="absolute inset-0 w-full h-full pointer-events-none">
-                  {formData.heroType === HeroType.VIDEO || imageCount === 0 ? (
-                    <iframe
-                      src={`https://www.youtube.com/embed/${
-                        formData.heroVideoId || "t1Nbqpse8kc"
-                      }?autoplay=1&mute=1&controls=0&loop=1&playlist=${
-                        formData.heroVideoId || "t1Nbqpse8kc"
-                      }`}
-                      title="Preview Video"
-                      className="w-[250%] h-[250%] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 object-cover opacity-55"
-                    />
-                  ) : (
-                    <div
-                      className={`w-full h-full grid gap-0.5 ${
-                        imageCount === 1
-                          ? "grid-cols-1"
-                          : imageCount === 2
-                            ? "grid-cols-2"
-                            : imageCount === 3
-                              ? "grid-cols-2 grid-rows-2"
-                              : "grid-cols-4"
-                      }`}
-                    >
-                      {formData.heroImages.slice(0, 4).map((imgUrl, idx) => (
-                        <div
-                          key={idx}
-                          className={`relative w-full h-full overflow-hidden ${
-                            imageCount === 3 && idx === 2 ? "col-span-2" : ""
-                          }`}
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={imgUrl}
-                            alt={`Hero ${idx + 1}`}
-                            className="w-full h-full object-cover opacity-75"
-                          />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                <div className="absolute inset-0 bg-gradient-to-t from-[#151413] via-[#151413]/50 to-black/60" />
-
-                <div className="relative z-10 px-6 flex flex-col items-center text-center gap-3">
-                  <span className="text-[9px] font-bold uppercase tracking-[0.35em] text-[#C4956A]">
-                    Welcome to {formData.siteName || "Our Store"}
-                  </span>
-                  <h2 className="font-heading text-3xl font-extrabold uppercase tracking-tight max-w-lg leading-tight">
-                    {formData.tagline}
-                  </h2>
-                  <p className="text-[11px] text-gray-200 max-w-md">
-                    {formData.description}
-                  </p>
-                  <div className="flex gap-3 mt-1">
-                    <span className="px-5 py-2 bg-[#C4956A] text-white text-[9px] font-bold uppercase tracking-widest rounded-sm">
-                      Explore Catalog
-                    </span>
-                    <span className="px-5 py-2 border border-white/40 text-white text-[9px] font-bold uppercase tracking-widest rounded-sm">
-                      View Collection
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* 4. Preview Sample Catalog Grid */}
-              <div className="p-6 bg-white">
-                <div className="flex justify-between items-center mb-4">
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em]">
-                    Featured Arrivals
-                  </span>
-                  <span className="text-[9px] text-[#C4956A] font-bold uppercase">
-                    View All →
-                  </span>
-                </div>
-                <div className="grid grid-cols-4 gap-3">
-                  {[1, 2, 3, 4].map((item) => (
-                    <div key={item} className="flex flex-col gap-1.5">
-                      <div className="aspect-[3/4] bg-[#FAF9F6] border border-[#EAE8E4] rounded-sm flex items-center justify-center text-[9px] text-[#A39E98]">
-                        Product {item}
-                      </div>
-                      <div className="h-2.5 w-3/4 bg-[#EAE8E4] rounded-xs" />
-                      <div className="h-2 w-1/2 bg-[#FAF9F6] rounded-xs" />
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 5. Preview Footer & Floating WhatsApp */}
-              <div className="bg-[#FAF9F6] border-t border-[#EAE8E4] p-6 grid grid-cols-3 gap-6 text-[10px] relative">
-                <div className="flex flex-col gap-2">
-                  <span className="font-heading font-bold text-xs uppercase tracking-widest">
-                    {formData.siteName || "STORE NAME"}
-                  </span>
-                  <p className="text-[#76726E] leading-relaxed">
-                    Curated fashion and lifestyle essentials delivered
-                    nationwide.
-                  </p>
-                </div>
-
-                <div className="flex flex-col gap-1.5 text-[#76726E]">
-                  <span className="font-bold text-[#151413] uppercase tracking-wider">
-                    Quick Links
-                  </span>
-                  <span>New Arrivals</span>
-                  <span>Best Sellers</span>
-                  <span>Delivery & Returns</span>
-                </div>
-
-                <div className="flex flex-col gap-1.5 text-[#76726E]">
-                  <span className="font-bold text-[#151413] uppercase tracking-wider">
-                    Contact
-                  </span>
-                  {formData.contactAddress && (
-                    <span>{formData.contactAddress}</span>
-                  )}
-                  {formData.location && <span>{formData.location}</span>}
-                  {formData.whatsappContact && (
-                    <span>{formData.whatsappContact}</span>
-                  )}
-                  {formData.businessHours && (
-                    <span>{formData.businessHours}</span>
-                  )}
-                </div>
-
-                {/* Floating WhatsApp Indicator */}
-                <div
-                  title={`Chat with ${formData.siteName}`}
-                  className="absolute bottom-4 right-4 w-9 h-9 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-md"
-                >
-                  <FaWhatsapp className="w-5 h-5" />
-                </div>
-              </div>
-            </div>
-          </div>
+          <StorefrontPreview
+            siteName={formData.siteName}
+            slug={formData.slug}
+            logoUrl={formData.logoUrl}
+            tagline={formData.tagline}
+            description={formData.description}
+            heroType={formData.heroType}
+            heroImages={formData.heroImages}
+            heroVideoId={formData.heroVideoId}
+            contactAddress={formData.contactAddress}
+            location={formData.location}
+            businessHours={formData.businessHours}
+            whatsappContact={formData.whatsappContact}
+            minFreeDeliveryFare={formData.minFreeDeliveryFare}
+            rootDomain={rootDomain}
+          />
         </div>
       </div>
+
+      {/* MOBILE FLOATING PREVIEW BUTTON */}
+      <button
+        type="button"
+        onClick={() => setMobilePreviewOpen(true)}
+        className="lg:hidden fixed bottom-5 right-5 z-40 px-4 py-3 rounded-full bg-[#151413] text-white shadow-xl border border-[#C4956A]/40 flex items-center gap-2 text-xs font-bold uppercase tracking-wider cursor-pointer"
+      >
+        <LuEye className="w-4 h-4 text-[#C4956A]" />
+        <span>Preview Site</span>
+      </button>
+
+      {/* MOBILE FULL-SCREEN PREVIEW MODAL */}
+      {mobilePreviewOpen && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-[#151413]/75 backdrop-blur-xs flex flex-col">
+          <div className="bg-white border-b border-[#EAE8E4] px-4 h-14 flex items-center justify-between shrink-0">
+            <span className="text-xs font-bold uppercase tracking-wider flex items-center gap-1.5">
+              <LuEye className="w-4 h-4 text-[#C4956A]" /> Live Mobile Preview
+            </span>
+            <button
+              type="button"
+              onClick={() => setMobilePreviewOpen(false)}
+              className="px-3 py-1.5 rounded-md bg-[#151413] text-white text-[11px] font-bold uppercase tracking-wider flex items-center gap-1 cursor-pointer"
+            >
+              <LuX className="w-3.5 h-3.5 text-[#C4956A]" /> Back to Editor
+            </button>
+          </div>
+          <div className="p-3 overflow-y-auto flex-1">
+            <StorefrontPreview
+              siteName={formData.siteName}
+              slug={formData.slug}
+              logoUrl={formData.logoUrl}
+              tagline={formData.tagline}
+              description={formData.description}
+              heroType={formData.heroType}
+              heroImages={formData.heroImages}
+              heroVideoId={formData.heroVideoId}
+              contactAddress={formData.contactAddress}
+              location={formData.location}
+              businessHours={formData.businessHours}
+              whatsappContact={formData.whatsappContact}
+              minFreeDeliveryFare={formData.minFreeDeliveryFare}
+              rootDomain={rootDomain}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
