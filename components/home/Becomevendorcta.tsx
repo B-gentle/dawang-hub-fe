@@ -39,7 +39,7 @@ export default function BecomeVendorCta() {
           </p>
           <Link
             href="/vendor/setup"
-            className="mt-2 inline-flex items-center justify-center bg-[#C4956A] px-8 py-3.5 text-xs font-bold uppercase tracking-wider text-[#151413] transition-colors hover:bg-[#D4A67B] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+            className="mt-2 inline-flex items-center justify-center bg-[#C4956A] px-8 py-3.5 text-xs font-bold uppercase tracking-wider text-[#151413] transition-colors hover:bg-[#D4A67B] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
           >
             Become a vendor
           </Link>

@@ -1,17 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiUser, FiMail, FiLock, FiArrowRight, FiShield } from "react-icons/fi";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { RegisterInput } from "@/lib/api/auth-api";
+import { getSafeRedirect, withRedirect } from "@/lib/utils/redirect";
 
-export default function RegisterPage() {
+function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirect = searchParams.get("redirect") || "/account";
+  // Only internal paths are accepted; empty string if none/invalid.
+  const requestedRedirect = getSafeRedirect(searchParams.get("redirect"), "");
+  const redirect = requestedRedirect || "/account";
+  const isVendorSignup = requestedRedirect.startsWith("/vendor");
 
   const [formData, setFormData] = useState<RegisterInput>({
     firstName: "",
@@ -64,7 +68,9 @@ export default function RegisterPage() {
             Create An Account
           </h1>
           <p className="text-xs text-[#76726E]">
-            Join us for express checkout, order tracking, and exclusive updates.
+            {isVendorSignup
+              ? "Create your account first, then you'll set up your vendor store."
+              : "Join us for express checkout, order tracking, and exclusive updates."}
           </p>
         </div>
 
@@ -164,7 +170,7 @@ export default function RegisterPage() {
         <div className="mt-6 pt-6 border-t border-[#EAE8E4] flex justify-center text-xs text-[#76726E]">
           <span>Already registered?</span>
           <Link
-            href={`/login${redirect ? `?redirect=${encodeURIComponent(redirect)}` : ""}`}
+            href={withRedirect("/login", requestedRedirect)}
             className="ml-1.5 font-bold text-[#151413] hover:text-[#C4956A] underline uppercase tracking-wider"
           >
             Sign In Here
@@ -172,5 +178,14 @@ export default function RegisterPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function RegisterPage() {
+  // useSearchParams requires a Suspense boundary for production builds
+  return (
+    <Suspense fallback={null}>
+      <RegisterForm />
+    </Suspense>
   );
 }

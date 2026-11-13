@@ -3,18 +3,28 @@ import type { NextRequest } from "next/server";
 
 export function proxy(request: NextRequest) {
   const token = request.cookies.get("dawang_token")?.value;
-  const isAdminRoute = request.nextUrl.pathname.startsWith("/admin");
+  const { pathname, search } = request.nextUrl;
 
-  // Redirect unauthenticated users attempting to access /admin routes to /login
-  if (isAdminRoute && !token) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("from", request.nextUrl.pathname);
-    return NextResponse.redirect(loginUrl);
+  if (!token) {
+    const isAdminRoute = pathname.startsWith("/admin");
+    const isVendorRoute = pathname.startsWith("/vendor");
+
+    // Admin pages: existing behaviour, send to login.
+    // Vendor pages: visitor must sign up first, send to register.
+    if (isAdminRoute || isVendorRoute) {
+      const url = request.nextUrl.clone();
+      url.pathname = isVendorRoute ? "/register" : "/login";
+      url.search = "";
+      // "redirect" is the single param name used by login and register
+      // (replaces the old "from" param).
+      url.searchParams.set("redirect", `${pathname}${search}`);
+      return NextResponse.redirect(url);
+    }
   }
 
   return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/admin/:path*"],
+  matcher: ["/admin/:path*", "/vendor/:path*"],
 };

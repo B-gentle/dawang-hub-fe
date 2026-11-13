@@ -1,13 +1,18 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import { authApi } from "@/lib/api/auth-api";
+import { getSafeRedirect, withRedirect } from "@/lib/utils/redirect";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Where the visitor was trying to go (e.g. /vendor/setup). Empty if none.
+  const redirectTo = getSafeRedirect(searchParams.get("redirect"), "");
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -22,11 +27,14 @@ export default function LoginPage() {
     try {
       const response = await authApi.login({ email, password });
 
-      if (response.user.role === "admin") {
+      if (redirectTo) {
+        router.push(redirectTo);
+      } else if (response.user.role === "admin") {
         router.push("/admin");
       } else {
         router.push("/account");
       }
+      router.refresh();
     } catch (err: unknown) {
       const message =
         err instanceof Error
@@ -119,7 +127,7 @@ export default function LoginPage() {
         <div className="mt-6 text-center text-xs text-[#76726E]">
           Don&apos;t have an account?{" "}
           <Link
-            href="/register"
+            href={withRedirect("/register", redirectTo)}
             className="font-bold text-[#C4956A] underline uppercase tracking-wider"
           >
             Register
@@ -127,5 +135,14 @@ export default function LoginPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams requires a Suspense boundary for production builds
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }
