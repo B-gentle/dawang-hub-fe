@@ -16,7 +16,16 @@ interface HeroProps {
   primaryCtaHref?: string;
   secondaryCtaText?: string;
   secondaryCtaHref?: string;
+  initialConfig?: Partial<SystemConfig>;
 }
+
+const DEFAULT_HERO_CONFIG: Partial<SystemConfig> = {
+  heroType: HeroType.VIDEO,
+  heroImages: [],
+  heroVideoId: "t1Nbqpse8kc",
+  minFreeDeliveryFare: 150000,
+  paymentEnv: "test",
+};
 
 export default function Hero({
   subtitle = "Welcome to the Dawang Experience",
@@ -26,22 +35,20 @@ export default function Hero({
   primaryCtaHref = "/shop",
   secondaryCtaText = "View Clothing",
   secondaryCtaHref = "/shop?category=clothes",
+  initialConfig,
 }: HeroProps) {
-  const [config, setConfig] = useState<Partial<SystemConfig>>({
-    heroType: HeroType.VIDEO,
-    heroImages: [],
-    heroVideoId: "t1Nbqpse8kc",
-    minFreeDeliveryFare: 150000,
-    paymentEnv: "test",
-  });
+  const [fetchedConfig, setFetchedConfig] =
+    useState<Partial<SystemConfig>>(DEFAULT_HERO_CONFIG);
 
   useEffect(() => {
+    if (initialConfig) return;
+
     let isMounted = true;
     const fetchConfig = async () => {
       try {
         const data = await systemConfigApi.getPublicConfig();
         if (isMounted && data) {
-          setConfig(data);
+          setFetchedConfig(data);
         }
       } catch (err) {
         console.warn(
@@ -55,21 +62,27 @@ export default function Hero({
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialConfig]);
 
+  const config = initialConfig ?? fetchedConfig;
   const videoId = config.heroVideoId || "t1Nbqpse8kc";
   const images = config.heroImages || [];
   const imageCount = images.length;
+  const accentColor = config.themeConfig?.accentColor || "#C4956A";
+  const primaryColor = config.themeConfig?.primaryColor || "#151413";
 
   return (
-    <section className="relative w-full h-[80vh] min-h-125 max-h-200 bg-[#151413] text-white overflow-hidden flex items-center justify-center">
+    <section
+      className="relative w-full h-[80vh] min-h-125 max-h-200 text-white overflow-hidden flex items-center justify-center"
+      style={{ backgroundColor: primaryColor }}
+    >
       {/* BACKGROUND MEDIA DISPLAY */}
       <div className="absolute inset-0 w-full h-full overflow-hidden pointer-events-none">
         {config.heroType === HeroType.VIDEO || imageCount === 0 ? (
           /* YouTube Video Background */
           <iframe
             src={`https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&controls=0&loop=1&playlist=${videoId}&showinfo=0&rel=0&iv_load_policy=3&enablejsapi=1`}
-            title="Dawang Hub Brand Reel"
+            title="Brand Reel"
             className="w-[300%] h-[300%] absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 object-cover opacity-60"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
           />
@@ -98,7 +111,7 @@ export default function Hero({
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={imgUrl}
-                    alt={`Dawang Hero Banner ${index + 1}`}
+                    alt={`Hero Banner ${index + 1}`}
                     className="w-full h-full object-cover opacity-75 transform scale-105 transition-transform duration-1000 hover:scale-100"
                   />
                 </div>
@@ -113,7 +126,10 @@ export default function Hero({
 
       {/* Hero Text Content */}
       <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 flex flex-col items-center text-center gap-5">
-        <span className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.35em] text-[#C4956A]">
+        <span
+          className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.35em]"
+          style={{ color: accentColor }}
+        >
           {subtitle}
         </span>
         <h1 className="font-heading text-3xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight max-w-4xl uppercase leading-tight text-white drop-shadow-xs">
@@ -125,7 +141,8 @@ export default function Hero({
         <div className="flex flex-col sm:flex-row gap-4 mt-2 w-full sm:w-auto">
           <Link
             href={primaryCtaHref}
-            className="px-8 py-3.5 bg-[#C4956A] text-white text-xs font-bold uppercase tracking-widest rounded-md hover:bg-[#b08259] transition-colors text-center shadow-lg"
+            className="px-8 py-3.5 text-white text-xs font-bold uppercase tracking-widest rounded-md hover:opacity-90 transition-opacity text-center shadow-lg"
+            style={{ backgroundColor: accentColor }}
           >
             {primaryCtaText}
           </Link>

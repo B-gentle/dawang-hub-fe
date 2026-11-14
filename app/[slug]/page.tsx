@@ -1,7 +1,14 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
 import { FaWhatsapp } from "react-icons/fa";
-import { LuMapPin, LuClock, LuShoppingBag } from "react-icons/lu";
+import Hero from "@/components/home/Hero";
+import ProductGrid from "@/components/products/ProductGrid";
+import { productApi } from "@/lib/api/product-api";
+import {
+  HeroType,
+  SystemConfig,
+  systemConfigApi,
+} from "@/lib/api/system-config-api";
+import { Product } from "@/types/product";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
@@ -16,37 +23,23 @@ interface PublicVendor {
   whatsappNumber?: string;
   themeConfig?: {
     tagline?: string;
+    subtitle?: string;
+    heroType?: "IMAGE" | "VIDEO" | "image" | "video";
     heroImages?: string[];
+    heroVideoId?: string;
     minFreeDeliveryFare?: number;
-  };
-}
-
-interface VendorSystemConfig {
-  siteName?: string;
-  logoUrl?: string;
-  tagline?: string;
-  subtitle?: string;
-  description?: string;
-  heroImages?: string[];
-  contactAddress?: string;
-  location?: string;
-  businessHours?: string;
-  whatsappContact?: string;
-  minFreeDeliveryFare?: number;
-  themeConfig?: {
     primaryColor?: string;
     accentColor?: string;
     backgroundColor?: string;
   };
 }
 
-interface StoreProduct {
-  id: string;
-  name: string;
-  slug: string;
-  price: number;
-  discountPrice?: number | null;
-  images?: string[];
+function extractProducts(
+  payload: Product[] | { items: Product[]; meta: unknown } | null,
+): Product[] {
+  if (!payload) return [];
+  if (Array.isArray(payload)) return payload;
+  return payload.items || [];
 }
 
 async function getStorefrontData(slug: string) {
@@ -55,30 +48,51 @@ async function getStorefrontData(slug: string) {
 
   const vendorRes = await fetch(vendorUrl, { cache: "no-store" });
   if (!vendorRes.ok) {
-    console.error(
-      `[Storefront 404] Failed fetching ${vendorUrl} -> HTTP ${vendorRes.status}`,
-    );
     return null;
   }
 
   const vendor = (await vendorRes.json()) as PublicVendor;
 
-  const [configRes, productsRes] = await Promise.all([
-    fetch(`${API_BASE}/system-config?vendorId=${vendor.id}`, {
-      cache: "no-store",
-    }),
-    fetch(`${API_BASE}/products?vendorId=${vendor.id}&limit=50`, {
-      cache: "no-store",
-    }),
-  ]);
+  const [rawConfig, newArrivalsRes, popularRes, featuredRes] =
+    await Promise.all([
+      systemConfigApi
+        .getPublicConfig(vendor.id)
+        .catch(() => ({}) as Partial<SystemConfig>),
+      productApi
+        .getProducts({
+          vendorId: vendor.id,
+          limit: 10,
+          sortBy: "createdAt",
+          sortOrder: "DESC",
+        })
+        .catch(() => null),
+      productApi
+        .getProducts({
+          vendorId: vendor.id,
+          limit: 8,
+          isPopular: true,
+          sortBy: "createdAt",
+          sortOrder: "DESC",
+        })
+        .catch(() => null),
+      productApi
+        .getProducts({
+          vendorId: vendor.id,
+          limit: 8,
+          isFeatured: true,
+          sortBy: "createdAt",
+          sortOrder: "DESC",
+        })
+        .catch(() => null),
+    ]);
 
-  const config: VendorSystemConfig = configRes.ok ? await configRes.json() : {};
-  const productsPayload = productsRes.ok ? await productsRes.json() : {};
-  const products: StoreProduct[] = Array.isArray(productsPayload)
-    ? productsPayload
-    : productsPayload.items || [];
-
-  return { vendor, config, products };
+  return {
+    vendor,
+    rawConfig,
+    newArrivals: extractProducts(newArrivalsRes),
+    popularProducts: extractProducts(popularRes),
+    featuredProducts: extractProducts(featuredRes),
+  };
 }
 
 export default async function PublicVendorStorePage({
@@ -91,25 +105,63 @@ export default async function PublicVendorStorePage({
 
   if (!data) notFound();
 
-  const { vendor, config, products } = data;
-  const primaryColor = config.themeConfig?.primaryColor || "#151413";
-  const accentColor = config.themeConfig?.accentColor || "#C4956A";
-  const backgroundColor = config.themeConfig?.backgroundColor || "#FAF9F6";
+  const { vendor, rawConfig, newArrivals, popularProducts, featuredProducts } =
+    data;
 
-  const storeName = config.siteName || vendor.storeName;
-  const logoUrl = config.logoUrl || vendor.logoUrl;
-  const tagline = config.tagline || vendor.themeConfig?.tagline || storeName;
-  const description = config.description || vendor.description;
+  const storeName = rawConfig.siteName || vendor.storeName;
   const heroImages =
-    (config.heroImages && config.heroImages.length > 0
-      ? config.heroImages
-      : vendor.themeConfig?.heroImages) || [];
-  const freeDelivery =
-    Number(
-      config.minFreeDeliveryFare ?? vendor.themeConfig?.minFreeDeliveryFare,
-    ) || 0;
+    rawConfig.heroImages && rawConfig.heroImages.length > 0
+      ? rawConfig.heroImages
+      : vendor.themeConfig?.heroImages || [];
+
+  const vendorHeroType = vendor.themeConfig?.heroType?.toLowerCase();
+  const resolvedHeroType =
+    rawConfig.heroType ??
+    (vendorHeroType === "video"
+      ? HeroType.VIDEO
+      : heroImages.length > 0
+        ? HeroType.IMAGE
+        : HeroType.VIDEO);
+
+  const heroConfig: Partial<SystemConfig> = {
+    ...rawConfig,
+    siteName: storeName,
+    logoUrl: rawConfig.logoUrl || vendor.logoUrl,
+    heroType: resolvedHeroType,
+    heroImages,
+    heroVideoId:
+      rawConfig.heroVideoId || vendor.themeConfig?.heroVideoId || "t1Nbqpse8kc",
+    themeConfig: {
+      primaryColor:
+        rawConfig.themeConfig?.primaryColor ||
+        vendor.themeConfig?.primaryColor ||
+        "#151413",
+      accentColor:
+        rawConfig.themeConfig?.accentColor ||
+        vendor.themeConfig?.accentColor ||
+        "#C4956A",
+      backgroundColor:
+        rawConfig.themeConfig?.backgroundColor ||
+        vendor.themeConfig?.backgroundColor ||
+        "#FAF9F6",
+    },
+  };
+
+  const resolvedTagline =
+    rawConfig.tagline ||
+    rawConfig.themeConfig?.tagline ||
+    vendor.themeConfig?.tagline ||
+    storeName;
+
+  const resolvedDescription =
+    rawConfig.subtitle ||
+    rawConfig.themeConfig?.subtitle ||
+    rawConfig.description ||
+    vendor.description ||
+    "Style that speaks, Quality that lasts";
+
   const whatsapp = (
-    config.whatsappContact ||
+    rawConfig.whatsappContact ||
     vendor.whatsappNumber ||
     ""
   ).replace(/\D/g, "");
@@ -117,155 +169,51 @@ export default async function PublicVendorStorePage({
   return (
     <div
       className="min-h-screen font-sans"
-      style={{ backgroundColor, color: primaryColor }}
+      style={{
+        backgroundColor: heroConfig.themeConfig?.backgroundColor || "#FAF9F6",
+      }}
     >
-      {/* Announcement Bar */}
-      {freeDelivery > 0 && (
-        <div
-          className="w-full text-white text-[10px] font-bold tracking-[0.2em] py-2 text-center uppercase"
-          style={{ backgroundColor: primaryColor }}
-        >
-          Free delivery on orders over ₦{freeDelivery.toLocaleString()}
-        </div>
-      )}
+      {/* Store Hero driven by Vendor SystemConfig */}
+      <Hero
+        initialConfig={heroConfig}
+        subtitle={`Welcome to ${storeName}`}
+        title={resolvedTagline}
+        description={resolvedDescription}
+        primaryCtaText="Explore Catalog"
+        primaryCtaHref="#new-arrivals"
+        secondaryCtaText="Popular Picks"
+        secondaryCtaHref="#popular-products"
+      />
 
-      {/* Store Header */}
-      <header className="px-6 h-20 border-b border-black/10 bg-white flex items-center justify-between sticky top-0 z-30">
-        <div className="flex items-center gap-3">
-          {logoUrl && (
-            // eslint-disable-next-line @next/next/no-img-element
-            <img
-              src={logoUrl}
-              alt={storeName}
-              className="w-10 h-10 object-contain rounded"
-            />
-          )}
-          <span className="font-heading text-base font-bold tracking-[0.18em] uppercase">
-            {storeName}
-          </span>
-        </div>
-      </header>
-
-      {/* Hero Banner */}
-      <section
-        className="relative h-96 text-white flex items-center justify-center overflow-hidden"
-        style={{ backgroundColor: primaryColor }}
-      >
-        {heroImages[0] && (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
-            src={heroImages[0]}
-            alt={storeName}
-            className="absolute inset-0 w-full h-full object-cover opacity-55"
-          />
-        )}
-        <div className="relative z-10 text-center px-6 max-w-2xl space-y-3">
-          <p
-            className="text-[11px] font-bold uppercase tracking-[0.3em]"
-            style={{ color: accentColor }}
-          >
-            Welcome to {storeName}
-          </p>
-          <h1 className="font-heading text-4xl font-extrabold uppercase">
-            {tagline}
-          </h1>
-          {config.subtitle && (
-            <p className="text-xs uppercase tracking-widest text-white/80">
-              {config.subtitle}
-            </p>
-          )}
-          {description && (
-            <p className="text-sm text-gray-200">{description}</p>
-          )}
-        </div>
+      {/* 1. New Arrivals Section Anchor */}
+      <section id="new-arrivals" className="scroll-mt-20">
+        <ProductGrid
+          title="New Arrivals"
+          subtitle={`The latest additions to the ${storeName} catalog`}
+          products={newArrivals}
+          viewAllHref={`/shop?vendorId=${vendor.id}`}
+        />
       </section>
 
-      {/* Store Info Bar */}
-      {(config.contactAddress || config.location || config.businessHours) && (
-        <div className="bg-white border-b border-black/10 px-6 py-3">
-          <div className="max-w-7xl mx-auto flex flex-wrap gap-6 text-xs opacity-80">
-            {(config.contactAddress || config.location) && (
-              <span className="flex items-center gap-1.5">
-                <LuMapPin
-                  className="w-3.5 h-3.5"
-                  style={{ color: accentColor }}
-                />
-                {config.contactAddress || config.location}
-              </span>
-            )}
-            {config.businessHours && (
-              <span className="flex items-center gap-1.5">
-                <LuClock
-                  className="w-3.5 h-3.5"
-                  style={{ color: accentColor }}
-                />
-                {config.businessHours}
-              </span>
-            )}
-          </div>
-        </div>
-      )}
+      {/* 2. Popular Products Section Anchor */}
+      <section id="popular-products" className="scroll-mt-20">
+        <ProductGrid
+          title="Popular Right Now"
+          subtitle="Trending styles favored by our customers"
+          products={popularProducts}
+          viewAllHref={`/shop?vendorId=${vendor.id}`}
+        />
+      </section>
 
-      {/* Storefront Catalog */}
-      <main className="max-w-7xl mx-auto px-6 py-12 space-y-6">
-        <div className="flex items-center justify-between">
-          <h2 className="font-heading text-sm font-bold uppercase tracking-widest">
-            Store Catalog ({products.length})
-          </h2>
-        </div>
-
-        {products.length === 0 ? (
-          <div className="bg-white rounded-xl border border-black/10 p-12 text-center space-y-2">
-            <LuShoppingBag
-              className="w-8 h-8 mx-auto opacity-50"
-              style={{ color: accentColor }}
-            />
-            <p className="text-sm font-bold">No products listed yet</p>
-            <p className="text-xs opacity-65">
-              Check back soon for new arrivals from {storeName}.
-            </p>
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-6">
-            {products.map((product) => {
-              const effectivePrice = product.discountPrice ?? product.price;
-              return (
-                <Link
-                  key={product.id}
-                  href={`/shop/${product.slug}`}
-                  className="group bg-white rounded-xl border border-black/10 overflow-hidden hover:shadow-md transition-shadow"
-                >
-                  <div className="aspect-square bg-black/5 overflow-hidden">
-                    {product.images?.[0] ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={product.images[0]}
-                        alt={product.name}
-                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-xs opacity-40">
-                        No Image
-                      </div>
-                    )}
-                  </div>
-                  <div className="p-4 space-y-1">
-                    <p className="text-xs font-bold line-clamp-1">
-                      {product.name}
-                    </p>
-                    <p
-                      className="text-sm font-bold"
-                      style={{ color: accentColor }}
-                    >
-                      ₦{Number(effectivePrice).toLocaleString()}
-                    </p>
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        )}
-      </main>
+      {/* 3. Featured Products Section */}
+      <section id="featured-products" className="scroll-mt-20">
+        <ProductGrid
+          title="Featured Selection"
+          subtitle="Handpicked collection highlights"
+          products={featuredProducts}
+          viewAllHref={`/shop?vendorId=${vendor.id}`}
+        />
+      </section>
 
       {/* Floating WhatsApp */}
       {whatsapp && (
@@ -273,7 +221,7 @@ export default async function PublicVendorStorePage({
           href={`https://wa.me/${whatsapp}`}
           target="_blank"
           rel="noreferrer"
-          className="fixed bottom-6 right-6 w-12 h-12 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-lg"
+          className="fixed bottom-6 right-6 z-40 w-12 h-12 rounded-full bg-[#25D366] text-white flex items-center justify-center shadow-lg hover:scale-105 transition-transform"
         >
           <FaWhatsapp className="w-6 h-6" />
         </a>

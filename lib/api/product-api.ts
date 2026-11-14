@@ -23,6 +23,7 @@ export interface ProductQueryParams {
   limit?: number;
   search?: string;
   categoryId?: string;
+  vendorId?: string;
   minPrice?: number;
   maxPrice?: number;
   isPopular?: boolean;
@@ -46,6 +47,7 @@ export const productApi = {
         searchParams.set("limit", params.limit.toString());
       if (params.search) searchParams.set("search", params.search);
       if (params.categoryId) searchParams.set("categoryId", params.categoryId);
+      if (params.vendorId) searchParams.set("vendorId", params.vendorId);
       if (params.minPrice !== undefined)
         searchParams.set("minPrice", params.minPrice.toString());
       if (params.maxPrice !== undefined)

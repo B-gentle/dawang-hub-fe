@@ -30,6 +30,9 @@ export interface SystemConfig {
   vendorId?: string | null;
   siteName: string;
   logoUrl: string;
+  tagline?: string;
+  subtitle?: string;
+  description?: string;
   contactAddress: string;
   location: string;
   businessHours: string;
