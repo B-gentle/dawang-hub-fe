@@ -63,7 +63,7 @@ export default function VendorDashboardLayout({
 
   if (!vendor) return null;
 
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "dawang.com";
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "globexmall.com";
   const storeUrl =
     typeof window !== "undefined" &&
     window.location.hostname.includes("localhost")

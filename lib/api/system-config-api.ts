@@ -5,7 +5,16 @@ export enum HeroType {
   VIDEO = "video",
 }
 
+export interface StoreThemeConfig {
+  primaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
+  tagline?: string;
+  subtitle?: string;
+}
+
 export interface SystemConfig {
+  vendorId?: string | null;
   siteName: string;
   logoUrl: string;
   contactAddress: string;
@@ -17,6 +26,7 @@ export interface SystemConfig {
   heroVideoId: string;
   minFreeDeliveryFare: number;
   paymentEnv: string;
+  themeConfig?: StoreThemeConfig;
 }
 
 export interface CloudinaryUploadResult {
@@ -26,10 +36,21 @@ export interface CloudinaryUploadResult {
 }
 
 export const systemConfigApi = {
-  getPublicConfig: () => fetcher<SystemConfig>("/system-config"),
+  getPublicConfig: (vendorId?: string) =>
+    fetcher<SystemConfig>(
+      vendorId
+        ? `/system-config?vendorId=${encodeURIComponent(vendorId)}`
+        : "/system-config",
+    ),
 
   updateSystemConfig: (data: Partial<SystemConfig>) =>
     fetcher<SystemConfig>("/system-config", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+
+  updateMyVendorConfig: (data: Partial<SystemConfig>) =>
+    fetcher<SystemConfig>("/system-config/vendor/me", {
       method: "PUT",
       body: JSON.stringify(data),
     }),

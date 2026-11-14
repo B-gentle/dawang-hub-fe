@@ -1,4 +1,4 @@
-import { fetcher } from "./fetcher";
+import { API_BASE_URL, fetcher, getAuthToken } from "./fetcher";
 
 export type VendorStatus = "PENDING" | "APPROVED" | "SUSPENDED";
 
@@ -62,6 +62,41 @@ export interface VendorDashboardStats {
 }
 
 export const vendorApi = {
+  stageSetup: async (
+    payload: OnboardVendorPayload,
+    logoFile: File | null,
+    heroFiles: File[],
+  ): Promise<{ draftId: string }> => {
+    const formData = new FormData();
+    formData.append("payload", JSON.stringify(payload));
+    if (logoFile) {
+      formData.append("logo", logoFile);
+    }
+    heroFiles.forEach((file) => {
+      formData.append("heroImages", file);
+    });
+
+    const token = getAuthToken();
+    const res = await fetch(`${API_BASE_URL}/vendors/setup/stage`, {
+      method: "POST",
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const error = await res
+        .json()
+        .catch(() => ({ message: "Failed to stage storefront setup" }));
+      throw new Error(
+        Array.isArray(error.message)
+          ? error.message.join(", ")
+          : error.message || `Request failed with status ${res.status}`,
+      );
+    }
+
+    return res.json();
+  },
+
   onboardVendor: (payload: OnboardVendorPayload) =>
     fetcher<VendorProfile>("/vendors/onboard", {
       method: "POST",

@@ -5,7 +5,7 @@ export function proxy(request: NextRequest) {
   const token = request.cookies.get("dawang_token")?.value;
   const { pathname, search } = request.nextUrl;
   const hostname = request.headers.get("host") || "";
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "dawang.com";
+  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "globexmall.com";
 
   // 1. Auth Protection for /admin and /vendor routes
   if (!token) {
@@ -21,7 +21,7 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Multi-Tenant Storefront Subdomain Rewrite ({slug}.dawang.com -> /store/{slug})
+  // 2. Multi-Tenant Storefront Subdomain Rewrite ({slug}.globexmall.com -> /store/{slug})
   const cleanHost = hostname.split(":")[0]; // Strip port (e.g. :3000)
   const rootWithoutPort = rootDomain.split(":")[0];
 

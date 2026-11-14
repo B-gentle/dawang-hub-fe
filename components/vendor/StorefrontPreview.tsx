@@ -18,6 +18,9 @@ export interface StorefrontPreviewProps {
   businessHours: string;
   whatsappContact: string;
   minFreeDeliveryFare: number;
+  primaryColor?: string;
+  accentColor?: string;
+  backgroundColor?: string;
   rootDomain?: string;
 }
 
@@ -35,7 +38,10 @@ export function StorefrontPreview({
   businessHours,
   whatsappContact,
   minFreeDeliveryFare,
-  rootDomain = "dawang.com",
+  primaryColor = "#151413",
+  accentColor = "#C4956A",
+  backgroundColor = "#FAF9F6",
+  rootDomain = "globexmall.com",
 }: StorefrontPreviewProps) {
   const nameParts = (siteName || "STORE NAME").trim().split(" ");
   const previewMainTitle = nameParts[0] || "STORE";
@@ -57,9 +63,15 @@ export function StorefrontPreview({
       </div>
 
       {/* Simulated Storefront Viewport */}
-      <div className="relative flex flex-col max-h-[76vh] lg:max-h-190 overflow-y-auto">
+      <div
+        style={{ backgroundColor }}
+        className="relative flex flex-col max-h-[76vh] lg:max-h-190 overflow-y-auto"
+      >
         {/* 1. Preview Announcement Bar */}
-        <div className="w-full bg-[#151413] text-white text-[9px] font-bold tracking-[0.2em] py-1.5 px-2 text-center">
+        <div
+          style={{ backgroundColor: primaryColor }}
+          className="w-full text-white text-[9px] font-bold tracking-[0.2em] py-1.5 px-2 text-center"
+        >
           FREE DELIVERY ON ORDERS OVER ₦
           {Number(minFreeDeliveryFare || 0).toLocaleString()} •{" "}
           <span className="underline">SHOP NOW</span>
@@ -79,23 +91,35 @@ export function StorefrontPreview({
               </div>
             ) : null}
             <div className="flex flex-col">
-              <span className="font-heading text-sm font-bold tracking-[0.18em] text-[#151413] leading-none uppercase">
+              <span
+                style={{ color: primaryColor }}
+                className="font-heading text-sm font-bold tracking-[0.18em] leading-none uppercase"
+              >
                 {previewMainTitle}
               </span>
-              <span className="text-[7px] font-bold tracking-[0.25em] uppercase text-[#C4956A] mt-0.5">
+              <span
+                style={{ color: accentColor }}
+                className="text-[7px] font-bold tracking-[0.25em] uppercase mt-0.5"
+              >
                 {previewSubTitle}
               </span>
             </div>
           </div>
 
-          <div className="hidden sm:flex items-center gap-5 text-[9px] font-bold tracking-[0.18em] uppercase text-[#151413]">
+          <div
+            style={{ color: primaryColor }}
+            className="hidden sm:flex items-center gap-5 text-[9px] font-bold tracking-[0.18em] uppercase"
+          >
             <span>Shop</span>
             <span>Wishlist</span>
             <span>Clothes</span>
             <span>Shoes</span>
           </div>
 
-          <div className="flex items-center gap-3 text-[#151413]">
+          <div
+            style={{ color: primaryColor }}
+            className="flex items-center gap-3"
+          >
             <LuSearch className="w-4 h-4" />
             <LuUser className="w-4 h-4" />
             <LuShoppingBag className="w-4 h-4" />
@@ -103,7 +127,10 @@ export function StorefrontPreview({
         </div>
 
         {/* 3. Preview Hero Section */}
-        <div className="relative w-full h-80 sm:h-90 bg-[#151413] text-white overflow-hidden flex items-center justify-center">
+        <div
+          style={{ backgroundColor: primaryColor }}
+          className="relative w-full h-80 sm:h-90 text-white overflow-hidden flex items-center justify-center"
+        >
           <div className="absolute inset-0 w-full h-full pointer-events-none">
             {heroType === HeroType.VIDEO ? (
               <iframe
@@ -145,14 +172,27 @@ export function StorefrontPreview({
                 ))}
               </div>
             ) : (
-              <div className="w-full h-full bg-linear-to-br from-[#23201E] via-[#151413] to-[#2E241C]" />
+              <div
+                style={{
+                  background: `linear-gradient(135deg, ${primaryColor} 0%, #1F1C1A 60%, ${accentColor}44 100%)`,
+                }}
+                className="w-full h-full"
+              />
             )}
           </div>
 
-          <div className="absolute inset-0 bg-linear-to-t from-[#151413] via-[#151413]/50 to-black/60" />
+          <div
+            style={{
+              background: `linear-gradient(to top, ${primaryColor}, ${primaryColor}80, rgba(0,0,0,0.55))`,
+            }}
+            className="absolute inset-0"
+          />
 
           <div className="relative z-10 px-6 flex flex-col items-center text-center gap-3">
-            <span className="text-[9px] font-bold uppercase tracking-[0.35em] text-[#C4956A]">
+            <span
+              style={{ color: accentColor }}
+              className="text-[9px] font-bold uppercase tracking-[0.35em]"
+            >
               Welcome to {siteName || "Our Store"}
             </span>
             <h2 className="font-heading text-2xl sm:text-3xl font-extrabold uppercase tracking-tight max-w-lg leading-tight">
@@ -162,7 +202,10 @@ export function StorefrontPreview({
               {description || "Your store description appears here"}
             </p>
             <div className="flex gap-3 mt-1">
-              <span className="px-4 sm:px-5 py-2 bg-[#C4956A] text-white text-[9px] font-bold uppercase tracking-widest rounded-sm">
+              <span
+                style={{ backgroundColor: accentColor }}
+                className="px-4 sm:px-5 py-2 text-white text-[9px] font-bold uppercase tracking-widest rounded-sm"
+              >
                 Explore Catalog
               </span>
               <span className="px-4 sm:px-5 py-2 border border-white/40 text-white text-[9px] font-bold uppercase tracking-widest rounded-sm">
@@ -175,17 +218,26 @@ export function StorefrontPreview({
         {/* 4. Preview Sample Catalog Grid */}
         <div className="p-4 sm:p-6 bg-white">
           <div className="flex justify-between items-center mb-4">
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em]">
+            <span
+              style={{ color: primaryColor }}
+              className="text-[10px] font-bold uppercase tracking-[0.2em]"
+            >
               Featured Arrivals
             </span>
-            <span className="text-[9px] text-[#C4956A] font-bold uppercase">
+            <span
+              style={{ color: accentColor }}
+              className="text-[9px] font-bold uppercase"
+            >
               View All →
             </span>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             {[1, 2, 3, 4].map((item) => (
               <div key={item} className="flex flex-col gap-1.5">
-                <div className="aspect-3/4 bg-[#FAF9F6] border border-[#EAE8E4] rounded-sm flex items-center justify-center text-[9px] text-[#A39E98]">
+                <div
+                  style={{ backgroundColor }}
+                  className="aspect-3/4 border border-[#EAE8E4] rounded-sm flex items-center justify-center text-[9px] text-[#A39E98]"
+                >
                   Product {item}
                 </div>
                 <div className="h-2.5 w-3/4 bg-[#EAE8E4] rounded-xs" />
@@ -196,9 +248,15 @@ export function StorefrontPreview({
         </div>
 
         {/* 5. Preview Footer & Floating WhatsApp */}
-        <div className="bg-[#FAF9F6] border-t border-[#EAE8E4] p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-3 gap-6 text-[10px] relative">
+        <div
+          style={{ backgroundColor }}
+          className="border-t border-[#EAE8E4] p-4 sm:p-6 grid grid-cols-1 sm:grid-cols-3 gap-6 text-[10px] relative"
+        >
           <div className="flex flex-col gap-2">
-            <span className="font-heading font-bold text-xs uppercase tracking-widest">
+            <span
+              style={{ color: primaryColor }}
+              className="font-heading font-bold text-xs uppercase tracking-widest"
+            >
               {siteName || "STORE NAME"}
             </span>
             <p className="text-[#76726E] leading-relaxed">
@@ -208,7 +266,10 @@ export function StorefrontPreview({
           </div>
 
           <div className="flex flex-col gap-1.5 text-[#76726E]">
-            <span className="font-bold text-[#151413] uppercase tracking-wider">
+            <span
+              style={{ color: primaryColor }}
+              className="font-bold uppercase tracking-wider"
+            >
               Quick Links
             </span>
             <span>New Arrivals</span>
@@ -217,7 +278,10 @@ export function StorefrontPreview({
           </div>
 
           <div className="flex flex-col gap-1.5 text-[#76726E]">
-            <span className="font-bold text-[#151413] uppercase tracking-wider">
+            <span
+              style={{ color: primaryColor }}
+              className="font-bold uppercase tracking-wider"
+            >
               Contact
             </span>
             {contactAddress && <span>{contactAddress}</span>}
