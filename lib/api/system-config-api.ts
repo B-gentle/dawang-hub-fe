@@ -13,6 +13,19 @@ export interface StoreThemeConfig {
   subtitle?: string;
 }
 
+export interface VendorPlanConfig {
+  id: string;
+  name: string;
+  durationMonths: number;
+  price: number;
+  billingLabel: string;
+  effectiveMonthlyLabel: string;
+  savingsLabel?: string;
+  positioning: string;
+  recommended?: boolean;
+  features: string[];
+}
+
 export interface SystemConfig {
   vendorId?: string | null;
   siteName: string;
@@ -25,7 +38,8 @@ export interface SystemConfig {
   heroImages: string[];
   heroVideoId: string;
   minFreeDeliveryFare: number;
-  paymentEnv: string;
+  paymentEnv?: string;
+  vendorPlans?: VendorPlanConfig[];
   themeConfig?: StoreThemeConfig;
 }
 

@@ -24,10 +24,7 @@ import { vendorApi } from "@/lib/api/vendor-api";
 import { paymentsApi } from "@/lib/api/payments-api";
 import { StorefrontPreview } from "@/components/vendor/StorefrontPreview";
 import { BankAccountVerifier } from "@/components/vendor/BankAccountVerifier";
-import {
-  VendorPlanCheckout,
-  VENDOR_PLANS,
-} from "@/components/vendor/VendorPlanCheckout";
+import { VendorPlanCheckout } from "@/components/vendor/VendorPlanCheckout";
 
 const DRAFT_STORAGE_KEY = "dawang_vendor_setup_draft";
 
@@ -80,8 +77,8 @@ const COLOR_PRESETS = [
 ];
 
 const INITIAL_FORM_DATA: StoreSetupFormData = {
-  siteName: "Dawang Stores",
-  slug: "dawangstores",
+  siteName: "AURA LUXURY",
+  slug: "aura-luxury",
   tagline: "Fashion. Beauty. Lifestyle.",
   subtitle: "Welcome to the Experience",
   description: "Style that speaks, Quality that lasts",
@@ -102,22 +99,19 @@ const INITIAL_FORM_DATA: StoreSetupFormData = {
 
 export default function StoreSetupPage() {
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedPlanId, setSelectedPlanId] = useState<string>("pro");
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("yearly");
   const [submitting, setSubmitting] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
 
-  // Bank Verification State
   const [resolvingAccount, setResolvingAccount] = useState(false);
   const [resolvedAccountName, setResolvedAccountName] = useState("");
 
-  // Raw Media Files & Local Preview URLs (uploaded to Redis only when paying)
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreviewUrl, setLogoPreviewUrl] = useState<string>("");
   const [heroItems, setHeroItems] = useState<
     Array<{ file: File; previewUrl: string }>
   >([]);
 
-  // Hydrate text & color draft from sessionStorage
   const [formData, setFormData] = useState<StoreSetupFormData>(() => {
     if (typeof window === "undefined") return INITIAL_FORM_DATA;
     try {
@@ -134,7 +128,6 @@ export default function StoreSetupPage() {
     return INITIAL_FORM_DATA;
   });
 
-  // Persist draft in sessionStorage
   useEffect(() => {
     try {
       sessionStorage.setItem(
@@ -168,7 +161,6 @@ export default function StoreSetupPage() {
     }));
   };
 
-  // Stage Logo File Locally
   const handleLogoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -185,7 +177,6 @@ export default function StoreSetupPage() {
     setLogoPreviewUrl("");
   };
 
-  // Stage Hero Image Files Locally (Max 4)
   const handleHeroImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -231,11 +222,7 @@ export default function StoreSetupPage() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
-  // Stage draft + files in Redis, then initialize unified Monnify payment
   const handlePayAndLaunch = async () => {
-    const plan = VENDOR_PLANS.find((p) => p.id === selectedPlanId);
-    if (!plan) return;
-
     const payload = {
       storeName: formData.siteName,
       slug: formData.slug,
@@ -262,17 +249,15 @@ export default function StoreSetupPage() {
     try {
       setSubmitting(true);
 
-      // 1. Stage draft & media in Redis (24h TTL)
       const { draftId } = await vendorApi.stageSetup(
         payload,
         logoFile,
         heroItems.map((i) => i.file),
       );
 
-      // 2. Initialize unified payment endpoint with reason = VENDOR_SETUP
       const res = await paymentsApi.initializeMonnify({
         reason: "VENDOR_SETUP",
-        planId: plan.id,
+        planId: selectedPlanId,
         draftId,
       });
 
@@ -341,7 +326,6 @@ export default function StoreSetupPage() {
         <div className="flex items-center gap-2 shrink-0">
           {step === 1 ? (
             <>
-              {/* Icon-only Preview Button with Tooltip */}
               <div className="relative group lg:hidden">
                 <button
                   type="button"
@@ -368,7 +352,6 @@ export default function StoreSetupPage() {
               </button>
             </>
           ) : (
-            /* Icon-only Back to Edit Button with Tooltip */
             <div className="relative group">
               <button
                 type="button"
@@ -392,7 +375,6 @@ export default function StoreSetupPage() {
       {step === 1 && (
         <>
           <div className="max-w-[1600px] mx-auto px-4 sm:px-8 py-8 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-            {/* LEFT SIDE: CONFIGURATION FORM */}
             <form
               onSubmit={handleProceedToPricing}
               className="lg:col-span-5 flex flex-col gap-6 bg-white p-6 rounded-xl border border-[#EAE8E4] shadow-xs text-xs"
@@ -410,7 +392,7 @@ export default function StoreSetupPage() {
                   <input
                     type="text"
                     required
-                    placeholder="e.g., DAWANG STORES"
+                    placeholder="e.g., AURA LUXURY"
                     value={formData.siteName}
                     onChange={(e) => handleNameChange(e.target.value)}
                     className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold focus:outline-hidden focus:border-[#C4956A]"
@@ -476,7 +458,6 @@ export default function StoreSetupPage() {
                   />
                 </div>
 
-                {/* Logo Selection */}
                 <div className="flex flex-col gap-2">
                   <label className="font-bold uppercase tracking-wider text-[#76726E]">
                     Store Logo
@@ -888,7 +869,7 @@ export default function StoreSetupPage() {
             </div>
           </div>
 
-          {/* MOBILE FLOATING ICON-ONLY PREVIEW BUTTON WITH TOOLTIP */}
+          {/* MOBILE FLOATING ICON-ONLY PREVIEW BUTTON */}
           <div className="lg:hidden fixed bottom-5 right-5 z-40 group">
             <button
               type="button"
@@ -953,7 +934,7 @@ export default function StoreSetupPage() {
         </>
       )}
 
-      {/* STEP 2: MODULAR PRICING PLAN & SETUP PAYMENT */}
+      {/* STEP 2: DATABASE-DRIVEN PRICING PLAN & SETUP PAYMENT */}
       {step === 2 && (
         <VendorPlanCheckout
           siteName={formData.siteName}

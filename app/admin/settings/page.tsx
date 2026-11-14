@@ -16,18 +16,20 @@ import {
   LuClock,
   LuPhone,
   LuBuilding,
+  LuLayers,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import {
   systemConfigApi,
   HeroType,
   SystemConfig,
+  VendorPlanConfig,
 } from "@/lib/api/system-config-api";
 
 export default function AdminSettingsPage() {
-  const [activeTab, setActiveTab] = useState<"general" | "hero" | "shipping">(
-    "general",
-  );
+  const [activeTab, setActiveTab] = useState<
+    "general" | "hero" | "shipping" | "plans"
+  >("general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingHeroImage, setUploadingHeroImage] = useState(false);
@@ -45,6 +47,7 @@ export default function AdminSettingsPage() {
     heroVideoId: "",
     minFreeDeliveryFare: 150000,
     paymentEnv: "test",
+    vendorPlans: [],
   });
 
   const loadSettings = async () => {
@@ -64,6 +67,7 @@ export default function AdminSettingsPage() {
           heroVideoId: data.heroVideoId || "",
           minFreeDeliveryFare: Number(data.minFreeDeliveryFare) || 0,
           paymentEnv: data.paymentEnv || "test",
+          vendorPlans: data.vendorPlans || [],
         });
       }
     } catch (err) {
@@ -76,17 +80,29 @@ export default function AdminSettingsPage() {
 
   useEffect(() => {
     let isMounted = true;
-
     queueMicrotask(() => {
-      if (isMounted) {
-        loadSettings();
-      }
+      if (isMounted) loadSettings();
     });
-
     return () => {
       isMounted = false;
     };
   }, []);
+
+  const handlePlanFieldChange = (
+    planId: string,
+    field: keyof VendorPlanConfig,
+    value: string | number | boolean,
+  ) => {
+    setSysConfig((prev) => ({
+      ...prev,
+      vendorPlans: (prev.vendorPlans || []).map((plan) => {
+        if (field === "recommended" && value === true) {
+          return { ...plan, recommended: plan.id === planId };
+        }
+        return plan.id === planId ? { ...plan, [field]: value } : plan;
+      }),
+    }));
+  };
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +127,7 @@ export default function AdminSettingsPage() {
         heroVideoId: sysConfig.heroVideoId || "",
         minFreeDeliveryFare: Number(sysConfig.minFreeDeliveryFare) || 0,
         paymentEnv: sysConfig.paymentEnv || "test",
+        vendorPlans: sysConfig.vendorPlans,
       });
 
       setSysConfig({
@@ -125,6 +142,7 @@ export default function AdminSettingsPage() {
         heroVideoId: updated.heroVideoId || "",
         minFreeDeliveryFare: Number(updated.minFreeDeliveryFare) || 0,
         paymentEnv: updated.paymentEnv || "test",
+        vendorPlans: updated.vendorPlans || [],
       });
 
       toast.success("System configuration updated successfully");
@@ -137,7 +155,6 @@ export default function AdminSettingsPage() {
     }
   };
 
-  // Logo File Upload
   const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -180,7 +197,6 @@ export default function AdminSettingsPage() {
     }
   };
 
-  // Hero File Upload
   const handleHeroFileUpload = async (
     e: React.ChangeEvent<HTMLInputElement>,
   ) => {
@@ -241,8 +257,8 @@ export default function AdminSettingsPage() {
             System Settings
           </h1>
           <p className="text-sm text-[#76726E] mt-1">
-            Manage site branding, contact information, hero banner media, and
-            payment options.
+            Manage site branding, vendor subscription plans, hero banner media,
+            and payment options.
           </p>
         </div>
 
@@ -270,6 +286,7 @@ export default function AdminSettingsPage() {
           {/* Settings Navigation Sidebar */}
           <aside className="w-full md:w-64 shrink-0 flex flex-col gap-1">
             <button
+              type="button"
               onClick={() => setActiveTab("general")}
               className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
                 activeTab === "general"
@@ -281,6 +298,7 @@ export default function AdminSettingsPage() {
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab("hero")}
               className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
                 activeTab === "hero"
@@ -292,6 +310,7 @@ export default function AdminSettingsPage() {
             </button>
 
             <button
+              type="button"
               onClick={() => setActiveTab("shipping")}
               className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
                 activeTab === "shipping"
@@ -300,6 +319,18 @@ export default function AdminSettingsPage() {
               }`}
             >
               <LuTruck className="w-4 h-4 text-[#C4956A]" /> Delivery & Payment
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("plans")}
+              className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
+                activeTab === "plans"
+                  ? "bg-[#171514] text-white"
+                  : "bg-white text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6] border border-[#EAE8E4]"
+              }`}
+            >
+              <LuLayers className="w-4 h-4 text-[#C4956A]" /> Vendor Plans
             </button>
           </aside>
 
@@ -374,7 +405,6 @@ export default function AdminSettingsPage() {
                   </div>
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Site Name */}
                     <div className="flex flex-col gap-1.5">
                       <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
                         <LuBuilding className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
@@ -393,7 +423,6 @@ export default function AdminSettingsPage() {
                       />
                     </div>
 
-                    {/* WhatsApp Contact */}
                     <div className="flex flex-col gap-1.5">
                       <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
                         <LuPhone className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
@@ -413,7 +442,6 @@ export default function AdminSettingsPage() {
                       />
                     </div>
 
-                    {/* Location */}
                     <div className="flex flex-col gap-1.5">
                       <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
                         <LuMapPin className="w-3.5 h-3.5 text-[#C4956A]" /> City
@@ -433,7 +461,6 @@ export default function AdminSettingsPage() {
                       />
                     </div>
 
-                    {/* Business Hours */}
                     <div className="flex flex-col gap-1.5">
                       <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
                         <LuClock className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
@@ -454,7 +481,6 @@ export default function AdminSettingsPage() {
                     </div>
                   </div>
 
-                  {/* Physical Address */}
                   <div className="flex flex-col gap-1.5">
                     <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
                       <LuMapPin className="w-3.5 h-3.5 text-[#C4956A]" /> Full
@@ -534,7 +560,6 @@ export default function AdminSettingsPage() {
                     </div>
                   </div>
 
-                  {/* IMAGE CAROUSEL SECTION */}
                   {sysConfig.heroType === HeroType.IMAGE && (
                     <div className="flex flex-col gap-3">
                       <label className="font-bold uppercase tracking-wider text-[#76726E]">
@@ -589,7 +614,6 @@ export default function AdminSettingsPage() {
                     </div>
                   )}
 
-                  {/* VIDEO EMBED SECTION */}
                   {sysConfig.heroType === HeroType.VIDEO && (
                     <div className="flex flex-col gap-1.5">
                       <label className="font-bold uppercase tracking-wider text-[#76726E]">
@@ -607,9 +631,6 @@ export default function AdminSettingsPage() {
                         }
                         className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-mono focus:outline-hidden focus:border-[#C4956A]"
                       />
-                      <p className="text-[10px] text-[#76726E]">
-                        Enter YouTube video ID or full video embed URL.
-                      </p>
                     </div>
                   )}
                 </div>
@@ -623,7 +644,7 @@ export default function AdminSettingsPage() {
                       Delivery & Payment Environment
                     </h2>
                     <p className="text-[#76726E] text-xs mt-0.5">
-                      Set logistics parameters and active Paystack gateway mode.
+                      Set logistics parameters and active payment gateway mode.
                     </p>
                   </div>
 
@@ -645,19 +666,15 @@ export default function AdminSettingsPage() {
                         }
                         className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold focus:outline-hidden focus:border-[#C4956A]"
                       />
-                      <p className="text-[10px] text-[#76726E]">
-                        Cart totals equal to or exceeding this amount qualify
-                        for free delivery.
-                      </p>
                     </div>
 
                     <div className="flex flex-col gap-1.5">
                       <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
                         <LuCreditCard className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
-                        Paystack Environment
+                        Payment Environment
                       </label>
                       <select
-                        value={sysConfig.paymentEnv}
+                        value={sysConfig.paymentEnv || "test"}
                         onChange={(e) =>
                           setSysConfig((prev) => ({
                             ...prev,
@@ -669,11 +686,128 @@ export default function AdminSettingsPage() {
                         <option value="test">Test / Sandbox Mode</option>
                         <option value="live">Live Production Mode</option>
                       </select>
-                      <p className="text-[10px] text-[#76726E]">
-                        Controls which Paystack secret API key is used during
-                        transactions.
-                      </p>
                     </div>
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 4: VENDOR SUBSCRIPTION PLANS (ADMIN ONLY) */}
+              {activeTab === "plans" && (
+                <div className="flex flex-col gap-5">
+                  <div className="pb-3 border-b border-[#EAE8E4]">
+                    <h2 className="font-heading text-base font-bold uppercase tracking-wider text-[#151413]">
+                      Vendor Storefront Subscription Plans
+                    </h2>
+                    <p className="text-[#76726E] text-xs mt-0.5">
+                      Adjust billing cycle prices and badges shown during vendor
+                      onboarding. Changes take effect immediately on checkout.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(sysConfig.vendorPlans || []).map((plan) => (
+                      <div
+                        key={plan.id}
+                        className="p-4 rounded-lg border border-[#EAE8E4] bg-[#FAF9F6] flex flex-col gap-3"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-heading font-bold text-sm uppercase">
+                            {plan.name}
+                          </span>
+                          <label className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={Boolean(plan.recommended)}
+                              onChange={(e) =>
+                                handlePlanFieldChange(
+                                  plan.id,
+                                  "recommended",
+                                  e.target.checked,
+                                )
+                              }
+                              className="accent-[#C4956A]"
+                            />
+                            Recommended
+                          </label>
+                        </div>
+
+                        <div className="grid grid-cols-2 gap-2.5">
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold uppercase text-[#76726E]">
+                              Price (₦)
+                            </span>
+                            <input
+                              type="number"
+                              min={0}
+                              value={plan.price}
+                              onChange={(e) =>
+                                handlePlanFieldChange(
+                                  plan.id,
+                                  "price",
+                                  Number(e.target.value),
+                                )
+                              }
+                              className="px-3 py-2 bg-white border border-[#EAE8E4] rounded-md font-bold"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold uppercase text-[#76726E]">
+                              Effective Monthly
+                            </span>
+                            <input
+                              type="text"
+                              value={plan.effectiveMonthlyLabel}
+                              onChange={(e) =>
+                                handlePlanFieldChange(
+                                  plan.id,
+                                  "effectiveMonthlyLabel",
+                                  e.target.value,
+                                )
+                              }
+                              className="px-3 py-2 bg-white border border-[#EAE8E4] rounded-md"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold uppercase text-[#76726E]">
+                              Savings Badge
+                            </span>
+                            <input
+                              type="text"
+                              placeholder="e.g. Save ₦10,000 (17%)"
+                              value={plan.savingsLabel || ""}
+                              onChange={(e) =>
+                                handlePlanFieldChange(
+                                  plan.id,
+                                  "savingsLabel",
+                                  e.target.value,
+                                )
+                              }
+                              className="px-3 py-2 bg-white border border-[#EAE8E4] rounded-md"
+                            />
+                          </div>
+
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] font-bold uppercase text-[#76726E]">
+                              Positioning Label
+                            </span>
+                            <input
+                              type="text"
+                              value={plan.positioning}
+                              onChange={(e) =>
+                                handlePlanFieldChange(
+                                  plan.id,
+                                  "positioning",
+                                  e.target.value,
+                                )
+                              }
+                              className="px-3 py-2 bg-white border border-[#EAE8E4] rounded-md"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}
