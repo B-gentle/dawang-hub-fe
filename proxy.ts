@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
+const RESERVED_SUBDOMAINS = new Set(["www", "api", "admin", "mail", "app"]);
+
 export function proxy(request: NextRequest) {
   const token = request.cookies.get("dawang_token")?.value;
   const { pathname, search } = request.nextUrl;
-  const hostname = request.headers.get("host") || "";
-  const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "globexmall.com";
+  const hostname =
+    request.headers.get("x-forwarded-host") ||
+    request.headers.get("host") ||
+    "";
+  const rootDomain = (
+    process.env.NEXT_PUBLIC_ROOT_DOMAIN || "globexmall.com"
+  ).toLowerCase();
 
   // 1. Auth Protection for /admin and /vendor routes
   if (!token) {
@@ -21,9 +28,10 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Multi-Tenant Storefront Subdomain Rewrite ({slug}.globexmall.com -> /store/{slug})
-  const cleanHost = hostname.split(":")[0]; // Strip port (e.g. :3000)
-  const rootWithoutPort = rootDomain.split(":")[0];
+  // 2. Multi-Tenant Storefront Subdomain Rewrite ({slug}.globexmall.com -> /{slug})
+  // Matches ./app/(store)/[slug]/page.tsx because (store) is a route group
+  const cleanHost = hostname.split(":")[0].toLowerCase().trim();
+  const rootWithoutPort = rootDomain.split(":")[0].trim();
 
   const isRootOrReserved =
     cleanHost === rootWithoutPort ||
@@ -34,15 +42,21 @@ export function proxy(request: NextRequest) {
   let subdomain = "";
   if (!isRootOrReserved) {
     if (cleanHost.endsWith(`.${rootWithoutPort}`)) {
-      subdomain = cleanHost.replace(`.${rootWithoutPort}`, "");
+      subdomain = cleanHost.slice(0, -(rootWithoutPort.length + 1));
     } else if (cleanHost.endsWith(".localhost")) {
-      subdomain = cleanHost.replace(".localhost", "");
+      subdomain = cleanHost.slice(0, -".localhost".length);
     }
   }
 
-  if (subdomain && !["www", "api", "admin"].includes(subdomain)) {
+  if (
+    subdomain &&
+    !subdomain.includes(".") &&
+    !RESERVED_SUBDOMAINS.has(subdomain) &&
+    pathname !== `/${subdomain}` &&
+    !pathname.startsWith(`/${subdomain}/`)
+  ) {
     const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/store/${subdomain}${pathname === "/" ? "" : pathname}`;
+    rewriteUrl.pathname = `/${subdomain}${pathname === "/" ? "" : pathname}`;
     return NextResponse.rewrite(rewriteUrl);
   }
 
