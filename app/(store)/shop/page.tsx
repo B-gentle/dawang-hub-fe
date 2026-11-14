@@ -17,6 +17,17 @@ import { Product } from "@/types/product";
 import { Category } from "@/types/category";
 import ProductCard from "@/components/products/ProductCard";
 
+const API_BASE = (
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
+).replace(/\/+$/, "");
+
+const ROOT_DOMAIN = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "globexmall.com")
+  .split(":")[0]
+  .toLowerCase()
+  .trim();
+
+const RESERVED_SUBDOMAINS = new Set(["www", "api", "admin", "mail", "app"]);
+
 interface PaginatedResponse<T> {
   items?: T[];
   data?: T[];
@@ -30,10 +41,44 @@ interface PaginatedResponse<T> {
   };
 }
 
+function getSubdomainSlugFromWindow(): string | null {
+  if (typeof window === "undefined") return null;
+  const host = window.location.hostname.toLowerCase().trim();
+
+  if (
+    host === ROOT_DOMAIN ||
+    host === `www.${ROOT_DOMAIN}` ||
+    host === "localhost" ||
+    host === "127.0.0.1"
+  ) {
+    return null;
+  }
+
+  let sub = "";
+  if (host.endsWith(`.${ROOT_DOMAIN}`)) {
+    sub = host.slice(0, -(ROOT_DOMAIN.length + 1));
+  } else if (host.endsWith(".localhost")) {
+    sub = host.slice(0, -".localhost".length);
+  }
+
+  if (sub && !sub.includes(".") && !RESERVED_SUBDOMAINS.has(sub)) {
+    return sub;
+  }
+
+  return null;
+}
+
 function ShopContent() {
   const searchParams = useSearchParams();
   const categoryParam = searchParams.get("category");
   const queryParam = searchParams.get("q");
+  const vendorIdParam = searchParams.get("vendorId");
+
+  const [resolvedVendorId, setResolvedVendorId] = useState<string | undefined>(
+    vendorIdParam || undefined,
+  );
+  const [vendorStoreName, setVendorStoreName] = useState<string | null>(null);
+  const [vendorResolved, setVendorResolved] = useState<boolean>(false);
 
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -52,6 +97,46 @@ function ShopContent() {
     "newest" | "price-asc" | "price-desc" | "name"
   >("newest");
   const [isMobileFilterOpen, setIsMobileFilterOpen] = useState(false);
+
+  // Resolve vendorId automatically from subdomain (or fallback to ?vendorId=)
+  useEffect(() => {
+    let isMounted = true;
+
+    const resolveVendor = async () => {
+      const subdomain = getSubdomainSlugFromWindow();
+
+      if (subdomain) {
+        try {
+          const res = await fetch(
+            `${API_BASE}/vendors/storefront/${encodeURIComponent(subdomain)}`,
+          );
+          if (res.ok && isMounted) {
+            const vendor = (await res.json()) as {
+              id: string;
+              storeName: string;
+            };
+            setResolvedVendorId(vendor.id);
+            setVendorStoreName(vendor.storeName);
+          }
+        } catch (err) {
+          console.warn("Failed to resolve vendor from subdomain:", err);
+        } finally {
+          if (isMounted) setVendorResolved(true);
+        }
+        return;
+      }
+
+      if (isMounted) {
+        setResolvedVendorId(vendorIdParam || undefined);
+        setVendorResolved(true);
+      }
+    };
+
+    resolveVendor();
+    return () => {
+      isMounted = false;
+    };
+  }, [vendorIdParam]);
 
   // Sync search query from URL parameter
   useEffect(() => {
@@ -100,6 +185,8 @@ function ShopContent() {
 
   // Load catalog data from server with filters & 30-item limit
   useEffect(() => {
+    if (!vendorResolved) return;
+
     let isMounted = true;
 
     const loadShopData = async () => {
@@ -112,6 +199,7 @@ function ShopContent() {
           apiClient.getProducts({
             page: currentPage,
             limit: pageSize,
+            vendorId: resolvedVendorId,
             search: searchQuery.trim() || undefined,
             categoryId:
               selectedCategory !== "all" ? selectedCategory : undefined,
@@ -172,7 +260,14 @@ function ShopContent() {
       isMounted = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, selectedCategory, searchQuery, sortBy]);
+  }, [
+    vendorResolved,
+    resolvedVendorId,
+    currentPage,
+    selectedCategory,
+    searchQuery,
+    sortBy,
+  ]);
 
   return (
     <div className="min-h-screen bg-white font-sans overflow-x-hidden">
@@ -180,14 +275,15 @@ function ShopContent() {
       <div className="bg-[#FAF9F6] border-b border-[#EAE8E4] py-6 sm:py-12 px-4 sm:px-8">
         <div className="max-w-7xl mx-auto flex flex-col items-center text-center gap-1.5">
           <span className="text-[10px] font-bold text-[#C4956A] uppercase tracking-[0.25em]">
-            Catalog
+            {vendorStoreName ? `${vendorStoreName} Catalog` : "Catalog"}
           </span>
           <h1 className="font-heading text-xl sm:text-4xl font-bold text-[#151413] uppercase tracking-tight">
-            Shop All Products
+            {vendorStoreName ? `Shop ${vendorStoreName}` : "Shop All Products"}
           </h1>
           <p className="text-xs text-[#76726E] max-w-md">
-            Explore our complete collection of luxury apparel, footwear, and
-            accessories.
+            {vendorStoreName
+              ? `Explore the complete product catalog from ${vendorStoreName}.`
+              : "Explore our complete collection of luxury apparel, footwear, and accessories."}
           </p>
         </div>
       </div>

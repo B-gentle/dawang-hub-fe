@@ -3,6 +3,21 @@ import type { NextRequest } from "next/server";
 
 const RESERVED_SUBDOMAINS = new Set(["www", "api", "admin", "mail", "app"]);
 
+// Shared routes that live outside app/[slug] and should resolve directly
+const SHARED_STORE_PREFIXES = [
+  "/shop",
+  "/product",
+  "/cart",
+  "/checkout",
+  "/wishlist",
+  "/account",
+  "/help",
+  "/login",
+  "/register",
+  "/forgot-password",
+  "/reset-password",
+];
+
 export function proxy(request: NextRequest) {
   const token = request.cookies.get("dawang_token")?.value;
   const { pathname, search } = request.nextUrl;
@@ -28,8 +43,7 @@ export function proxy(request: NextRequest) {
     }
   }
 
-  // 2. Multi-Tenant Storefront Subdomain Rewrite ({slug}.globexmall.com -> /{slug})
-  // Matches ./app/(store)/[slug]/page.tsx because (store) is a route group
+  // 2. Extract vendor subdomain ({slug}.globexmall.com or {slug}.localhost:3000)
   const cleanHost = hostname.split(":")[0].toLowerCase().trim();
   const rootWithoutPort = rootDomain.split(":")[0].trim();
 
@@ -51,13 +65,30 @@ export function proxy(request: NextRequest) {
   if (
     subdomain &&
     !subdomain.includes(".") &&
-    !RESERVED_SUBDOMAINS.has(subdomain) &&
-    pathname !== `/${subdomain}` &&
-    !pathname.startsWith(`/${subdomain}/`)
+    !RESERVED_SUBDOMAINS.has(subdomain)
   ) {
-    const rewriteUrl = request.nextUrl.clone();
-    rewriteUrl.pathname = `/${subdomain}${pathname === "/" ? "" : pathname}`;
-    return NextResponse.rewrite(rewriteUrl);
+    const requestHeaders = new Headers(request.headers);
+    requestHeaders.set("x-vendor-slug", subdomain);
+
+    // Let shared routes (/shop, /product/[id], /cart, etc.) resolve to their existing pages
+    const isSharedRoute = SHARED_STORE_PREFIXES.some(
+      (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`),
+    );
+
+    if (isSharedRoute) {
+      return NextResponse.next({
+        request: { headers: requestHeaders },
+      });
+    }
+
+    // Rewrite storefront root "/" to "/{subdomain}" (app/[slug]/page.tsx)
+    if (pathname === "/") {
+      const rewriteUrl = request.nextUrl.clone();
+      rewriteUrl.pathname = `/${subdomain}`;
+      return NextResponse.rewrite(rewriteUrl, {
+        request: { headers: requestHeaders },
+      });
+    }
   }
 
   return NextResponse.next();

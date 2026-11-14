@@ -19,9 +19,18 @@ import { useWishlist } from "@/context/WishlistContext";
 import { useCart } from "@/context/CartContext";
 import { systemConfigApi, SystemConfig } from "@/lib/api/system-config-api";
 
-const NAV_LINKS = [
-  { label: "Shop", href: "/shop" },
-  { label: "Wishlist", href: "/wishlist" },
+export interface NavCategoryItem {
+  label: string;
+  href: string;
+}
+
+interface SiteHeaderProps {
+  vendorId?: string;
+  initialConfig?: Partial<SystemConfig>;
+  categoryLinks?: NavCategoryItem[];
+}
+
+const DEFAULT_CATEGORY_LINKS: NavCategoryItem[] = [
   { label: "Clothes", href: "/shop?category=clothes" },
   { label: "Shoes", href: "/shop?category=shoe" },
 ];
@@ -29,13 +38,20 @@ const NAV_LINKS = [
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
 
-const SiteHeader = () => {
+const SiteHeader = ({
+  vendorId,
+  initialConfig,
+  categoryLinks,
+}: SiteHeaderProps) => {
   const router = useRouter();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [mobileSearchQuery, setMobileSearchQuery] = useState("");
 
-  const [sysConfig, setSysConfig] = useState<
-    Pick<SystemConfig, "siteName" | "logoUrl" | "minFreeDeliveryFare">
+  const [fetchedConfig, setFetchedConfig] = useState<
+    Pick<
+      SystemConfig,
+      "siteName" | "logoUrl" | "minFreeDeliveryFare" | "themeConfig"
+    >
   >({
     siteName: "Betime Technologies",
     logoUrl: "",
@@ -44,10 +60,8 @@ const SiteHeader = () => {
 
   const { wishlist, isMounted } = useWishlist();
   const { totalItems, openCart } = useCart();
-
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
 
-  // Fetch System Config & set Auth Status
   useEffect(() => {
     let isMountedFlag = true;
 
@@ -57,14 +71,17 @@ const SiteHeader = () => {
       }
     });
 
+    if (initialConfig) return;
+
     systemConfigApi
-      .getPublicConfig()
+      .getPublicConfig(vendorId)
       .then((config) => {
         if (isMountedFlag && config) {
-          setSysConfig({
+          setFetchedConfig({
             siteName: config.siteName || "Betime Technologies",
             logoUrl: config.logoUrl || "",
             minFreeDeliveryFare: Number(config.minFreeDeliveryFare) || 150000,
+            themeConfig: config.themeConfig,
           });
         }
       })
@@ -75,14 +92,38 @@ const SiteHeader = () => {
     return () => {
       isMountedFlag = false;
     };
-  }, []);
+  }, [initialConfig, vendorId]);
+
+  const activeConfig = initialConfig
+    ? {
+        siteName: initialConfig.siteName || "Storefront",
+        logoUrl: initialConfig.logoUrl || "",
+        minFreeDeliveryFare: Number(initialConfig.minFreeDeliveryFare) || 0,
+        themeConfig: initialConfig.themeConfig,
+      }
+    : fetchedConfig;
+
+  const primaryColor = activeConfig.themeConfig?.primaryColor || "#151413";
+  const accentColor = activeConfig.themeConfig?.accentColor || "#C4956A";
+
+  const resolvedCategories = vendorId
+    ? (categoryLinks || []).slice(0, 2)
+    : categoryLinks && categoryLinks.length > 0
+      ? categoryLinks.slice(0, 2)
+      : DEFAULT_CATEGORY_LINKS;
+
+  const navLinks: NavCategoryItem[] = [
+    { label: "Shop", href: "/shop" },
+    { label: "Wishlist", href: "/wishlist" },
+    ...resolvedCategories,
+  ];
 
   // Split site name into primary title and subtitle
-  const nameParts = sysConfig.siteName.trim().split(" ");
+  const nameParts = activeConfig.siteName.trim().split(" ");
   const mainTitle = nameParts[0] || "DAWANG";
-  const subTitle = nameParts.slice(1).join(" ") || "STORES";
+  const subTitle =
+    nameParts.slice(1).join(" ") || (vendorId ? "STORE" : "STORES");
 
-  // Use hydration-safe flags
   const userHref = isMounted && isLoggedIn ? "/account" : "/login";
   const userAriaLabel = isMounted && isLoggedIn ? "My Account" : "Sign In";
 
@@ -97,19 +138,24 @@ const SiteHeader = () => {
   return (
     <header className="sticky top-0 z-50 w-full border-b border-[#EAE8E4] bg-white/95 backdrop-blur-md font-sans">
       {/* Top Announcement Bar */}
-      <div className="w-full bg-[#151413] text-white text-[9px] sm:text-[10px] font-bold tracking-[0.15em] sm:tracking-[0.2em] py-2 text-center flex items-center justify-center gap-1.5 px-3">
-        <span className="truncate">
-          FREE DELIVERY ON ORDERS OVER ₦
-          {sysConfig.minFreeDeliveryFare.toLocaleString()}
-        </span>
-        <span className="text-white/40 hidden sm:inline">•</span>
-        <Link
-          href="/shop"
-          className="underline hover:text-[#C4956A] transition-colors shrink-0 hidden sm:inline"
+      {activeConfig.minFreeDeliveryFare > 0 && (
+        <div
+          className="w-full text-white text-[9px] sm:text-[10px] font-bold tracking-[0.15em] sm:tracking-[0.2em] py-2 text-center flex items-center justify-center gap-1.5 px-3"
+          style={{ backgroundColor: primaryColor }}
         >
-          SHOP NOW
-        </Link>
-      </div>
+          <span className="truncate">
+            FREE DELIVERY ON ORDERS OVER ₦
+            {activeConfig.minFreeDeliveryFare.toLocaleString()}
+          </span>
+          <span className="text-white/40 hidden sm:inline">•</span>
+          <Link
+            href="/shop"
+            className="underline transition-colors shrink-0 hidden sm:inline"
+          >
+            SHOP NOW
+          </Link>
+        </div>
+      )}
 
       {/* Main Header Bar */}
       <div className="max-w-7xl mx-auto px-3 sm:px-6 h-16 sm:h-20 flex justify-between items-center gap-2 sm:gap-4">
@@ -117,7 +163,7 @@ const SiteHeader = () => {
         <div className="flex items-center gap-2 sm:gap-3">
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            className="md:hidden p-1.5 text-[#151413] hover:text-[#C4956A] transition-colors focus:outline-hidden cursor-pointer"
+            className="md:hidden p-1.5 text-[#151413] transition-colors focus:outline-hidden cursor-pointer"
             aria-label="Toggle navigation menu"
           >
             {isMobileMenuOpen ? (
@@ -131,20 +177,26 @@ const SiteHeader = () => {
           <Link href="/" className="hidden sm:flex items-center gap-2">
             <div className="relative w-14 h-14 overflow-hidden shrink-0">
               <Image
-                src={sysConfig.logoUrl || "/logo-nobg.png"}
-                alt={`${sysConfig.siteName} Logo`}
+                src={activeConfig.logoUrl || "/logo-nobg.png"}
+                alt={`${activeConfig.siteName} Logo`}
                 fill
                 className="object-contain"
                 priority
-                unoptimized={Boolean(sysConfig.logoUrl)}
+                unoptimized={Boolean(activeConfig.logoUrl)}
               />
             </div>
 
             <div className="flex flex-col">
-              <span className="font-heading text-lg font-bold tracking-[0.18em] text-[#151413] leading-none uppercase">
+              <span
+                className="font-heading text-lg font-bold tracking-[0.18em] leading-none uppercase"
+                style={{ color: primaryColor }}
+              >
                 {mainTitle}
               </span>
-              <span className="text-[7.5px] font-bold tracking-[0.25em] uppercase text-[#C4956A] mt-0.5">
+              <span
+                className="text-[7.5px] font-bold tracking-[0.25em] uppercase mt-0.5"
+                style={{ color: accentColor }}
+              >
                 {subTitle}
               </span>
             </div>
@@ -153,21 +205,27 @@ const SiteHeader = () => {
 
         {/* Center Section: Navigation Links (Desktop) */}
         <nav className="hidden md:flex items-center gap-8 text-[11px] font-semibold tracking-[0.18em] uppercase text-[#151413]">
-          {NAV_LINKS.map((link) => (
+          {navLinks.map((link) => (
             <Link
               key={link.href}
               href={link.href}
-              className="relative py-1 transition-colors hover:text-[#C4956A] group flex items-center gap-1.5"
+              className="relative py-1 transition-colors group flex items-center gap-1.5"
             >
               <span>{link.label}</span>
               {isMounted &&
                 link.href === "/wishlist" &&
                 wishlist.length > 0 && (
-                  <span className="bg-[#C4956A] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center">
+                  <span
+                    className="text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center"
+                    style={{ backgroundColor: accentColor }}
+                  >
                     {wishlist.length}
                   </span>
                 )}
-              <motion.span className="absolute bottom-0 left-0 w-full h-[1.5px] bg-[#C4956A] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out" />
+              <motion.span
+                className="absolute bottom-0 left-0 w-full h-[1.5px] origin-left scale-x-0 group-hover:scale-x-100 transition-transform duration-300 ease-out"
+                style={{ backgroundColor: accentColor }}
+              />
             </Link>
           ))}
         </nav>
@@ -176,7 +234,7 @@ const SiteHeader = () => {
         <div className="hidden sm:flex items-center gap-4 text-[#151413]">
           <Link
             href="/shop"
-            className="p-1.5 hover:text-[#C4956A] transition-colors cursor-pointer"
+            className="p-1.5 transition-colors cursor-pointer"
             aria-label="Search catalog"
           >
             <FiSearch className="w-5 h-5" />
@@ -184,7 +242,7 @@ const SiteHeader = () => {
 
           <Link
             href={userHref}
-            className="p-1.5 hover:text-[#C4956A] transition-colors"
+            className="p-1.5 transition-colors"
             aria-label={userAriaLabel}
           >
             <FiUser className="w-5 h-5" />
@@ -192,12 +250,15 @@ const SiteHeader = () => {
 
           <button
             onClick={openCart}
-            className="p-1.5 hover:text-[#C4956A] transition-colors relative cursor-pointer"
+            className="p-1.5 transition-colors relative cursor-pointer"
             aria-label="Shopping Bag"
           >
             <FiShoppingBag className="w-5 h-5" />
             {isMounted && totalItems > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#151413] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white">
+              <span
+                className="absolute -top-1 -right-1 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white"
+                style={{ backgroundColor: primaryColor }}
+              >
                 {totalItems}
               </span>
             )}
@@ -209,24 +270,27 @@ const SiteHeader = () => {
           <Link href="/" className="flex items-center">
             <div className="relative w-14 h-14 overflow-hidden shrink-0">
               <Image
-                src={sysConfig.logoUrl || "/logo-nobg.png"}
-                alt={`${sysConfig.siteName} Logo`}
+                src={activeConfig.logoUrl || "/logo-nobg.png"}
+                alt={`${activeConfig.siteName} Logo`}
                 fill
                 className="object-contain"
                 priority
-                unoptimized={Boolean(sysConfig.logoUrl)}
+                unoptimized={Boolean(activeConfig.logoUrl)}
               />
             </div>
           </Link>
 
           <button
             onClick={openCart}
-            className="p-1 text-[#151413] hover:text-[#C4956A] transition-colors relative cursor-pointer"
+            className="p-1 text-[#151413] transition-colors relative cursor-pointer"
             aria-label="Shopping Bag"
           >
             <FiShoppingBag className="w-5 h-5" />
             {isMounted && totalItems > 0 && (
-              <span className="absolute -top-1 -right-1 bg-[#151413] text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white">
+              <span
+                className="absolute -top-1 -right-1 text-white text-[9px] font-bold rounded-full w-4 h-4 flex items-center justify-center border border-white"
+                style={{ backgroundColor: primaryColor }}
+              >
                 {totalItems}
               </span>
             )}
@@ -253,59 +317,81 @@ const SiteHeader = () => {
               className="absolute top-full left-0 w-full bg-white border-b border-[#EAE8E4] shadow-xl z-50 md:hidden"
             >
               <nav className="flex flex-col px-6 py-5 gap-4 text-xs font-bold tracking-[0.18em] uppercase text-[#151413]">
-                {/* 1. Shop Link */}
                 <Link
                   href="/shop"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-2 hover:text-[#C4956A] transition-colors border-b border-[#FAF9F6] flex items-center justify-between"
+                  className="py-2 transition-colors border-b border-[#FAF9F6] flex items-center justify-between"
                 >
                   <span>Shop</span>
                 </Link>
 
-                {/* 2. Wishlist Link with Badge */}
+                {resolvedCategories.map((cat) => (
+                  <Link
+                    key={cat.href}
+                    href={cat.href}
+                    onClick={() => setIsMobileMenuOpen(false)}
+                    className="py-2 transition-colors border-b border-[#FAF9F6] flex items-center justify-between"
+                  >
+                    <span>{cat.label}</span>
+                  </Link>
+                ))}
+
                 <Link
                   href="/wishlist"
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-2 hover:text-[#C4956A] transition-colors border-b border-[#FAF9F6] flex items-center justify-between"
+                  className="py-2 transition-colors border-b border-[#FAF9F6] flex items-center justify-between"
                 >
                   <span className="flex items-center gap-2">
-                    <FiHeart className="w-4 h-4 text-[#C4956A]" /> Wishlist
+                    <FiHeart
+                      className="w-4 h-4"
+                      style={{ color: accentColor }}
+                    />{" "}
+                    Wishlist
                   </span>
                   {isMounted && wishlist.length > 0 && (
-                    <span className="bg-[#C4956A] text-white text-[9px] font-bold rounded-full px-2 py-0.5">
+                    <span
+                      className="text-white text-[9px] font-bold rounded-full px-2 py-0.5"
+                      style={{ backgroundColor: accentColor }}
+                    >
                       {wishlist.length}
                     </span>
                   )}
                 </Link>
 
-                {/* 3. Account / Login Link */}
                 <Link
                   href={userHref}
                   onClick={() => setIsMobileMenuOpen(false)}
-                  className="py-2 hover:text-[#C4956A] transition-colors border-b border-[#FAF9F6] flex items-center justify-between"
+                  className="py-2 transition-colors border-b border-[#FAF9F6] flex items-center justify-between"
                 >
                   <span className="flex items-center gap-2">
                     {isMounted && isLoggedIn ? (
                       <>
-                        <FiUser className="w-4 h-4 text-[#C4956A]" /> My Account
+                        <FiUser
+                          className="w-4 h-4"
+                          style={{ color: accentColor }}
+                        />{" "}
+                        My Account
                       </>
                     ) : (
                       <>
-                        <FiLogIn className="w-4 h-4 text-[#C4956A]" /> Login
+                        <FiLogIn
+                          className="w-4 h-4"
+                          style={{ color: accentColor }}
+                        />{" "}
+                        Login
                       </>
                     )}
                   </span>
                 </Link>
 
-                {/* 4. Search Bar */}
                 <form onSubmit={handleMobileSearch} className="pt-2">
                   <div className="relative w-full">
                     <input
                       type="text"
-                      placeholder="Search store..."
+                      placeholder={`Search ${activeConfig.siteName}...`}
                       value={mobileSearchQuery}
                       onChange={(e) => setMobileSearchQuery(e.target.value)}
-                      className="w-full pl-9 pr-4 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A] placeholder-[#A39E98] tracking-normal font-normal normal-case"
+                      className="w-full pl-9 pr-4 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden placeholder-[#A39E98] tracking-normal font-normal normal-case"
                     />
                     <FiSearch className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
                   </div>

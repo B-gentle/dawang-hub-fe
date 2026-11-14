@@ -1,26 +1,42 @@
+import { ReactNode } from "react";
+import { headers } from "next/headers";
 import SiteHeader from "@/components/layouts/SiteHeader";
 import Footer from "@/components/layouts/Footer";
-import WhatsAppButton from "@/components/common/WhatsAppButton";
+import CartDrawer from "@/components/products/CartDrawer";
 import { WishlistProvider } from "@/context/WishlistContext";
 import { CartProvider } from "@/context/CartContext";
-import CartDrawer from "@/components/products/CartDrawer";
+import {
+  extractSubdomainFromHeaders,
+  resolveSubdomainBranding,
+} from "@/lib/utils/storefront-branding";
 
-export default function StoreLayout({
+export default async function StoreLayout({
   children,
 }: {
-  children: React.ReactNode;
+  children: ReactNode;
 }) {
+  const headerList = await headers();
+  const vendorSlug = extractSubdomainFromHeaders(headerList);
+  const vendorBranding = await resolveSubdomainBranding(vendorSlug);
+
   return (
-    <div className="min-h-screen flex flex-col">
-      <WishlistProvider>
-        <CartProvider>
-          <SiteHeader />
+    <WishlistProvider>
+      <CartProvider>
+        <div className="min-h-screen flex flex-col">
+          <SiteHeader
+            vendorId={vendorBranding?.vendorId}
+            initialConfig={vendorBranding?.mergedConfig}
+            categoryLinks={vendorBranding?.categoryLinks}
+          />
           <main className="flex-1">{children}</main>
-          <Footer />
+          <Footer
+            vendorId={vendorBranding?.vendorId}
+            initialConfig={vendorBranding?.mergedConfig}
+            categoryLinks={vendorBranding?.categoryLinks}
+          />
           <CartDrawer />
-          <WhatsAppButton phoneNumber="2349030657610" />
-        </CartProvider>
-      </WishlistProvider>
-    </div>
+        </div>
+      </CartProvider>
+    </WishlistProvider>
   );
 }

@@ -6,31 +6,46 @@ import Image from "next/image";
 import { FaInstagram } from "react-icons/fa";
 import { BsChat } from "react-icons/bs";
 import { systemConfigApi, SystemConfig } from "@/lib/api/system-config-api";
+import { NavCategoryItem } from "./SiteHeader";
+
+interface FooterProps {
+  vendorId?: string;
+  initialConfig?: Partial<SystemConfig>;
+  categoryLinks?: NavCategoryItem[];
+}
+
+const DEFAULT_FOOTER_CATEGORIES: NavCategoryItem[] = [
+  { label: "Shoes", href: "/shop?category=shoe" },
+  { label: "Clothes", href: "/shop?category=clothes" },
+];
 
 const emptySubscribe = () => () => {};
 const getYearSnapshot = () => new Date().getFullYear();
 const getServerYearSnapshot = () => 2026;
 
-const Footer = () => {
+const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
   const currentYear = useSyncExternalStore(
     emptySubscribe,
     getYearSnapshot,
     getServerYearSnapshot,
   );
 
-  const [sysConfig, setSysConfig] = useState<
+  const [fetchedConfig, setFetchedConfig] = useState<
     Pick<
       SystemConfig,
       | "siteName"
       | "logoUrl"
+      | "description"
       | "contactAddress"
       | "location"
       | "businessHours"
       | "whatsappContact"
+      | "themeConfig"
     >
   >({
     siteName: "Bee Technologies",
     logoUrl: "",
+    description: "",
     contactAddress: "",
     location: "Port Harcourt, Nigeria",
     businessHours: "Mon — Sat, 9am — 6pm",
@@ -38,18 +53,22 @@ const Footer = () => {
   });
 
   useEffect(() => {
+    if (initialConfig) return;
+
     let isMounted = true;
     systemConfigApi
-      .getPublicConfig()
+      .getPublicConfig(vendorId)
       .then((config) => {
         if (isMounted && config) {
-          setSysConfig({
+          setFetchedConfig({
             siteName: config.siteName || "Bee Technologies",
             logoUrl: config.logoUrl || "",
+            description: config.description || "",
             contactAddress: config.contactAddress || "",
             location: config.location || "Port Harcourt, Nigeria",
             businessHours: config.businessHours || "Mon — Sat, 9am — 6pm",
             whatsappContact: config.whatsappContact || "",
+            themeConfig: config.themeConfig,
           });
         }
       })
@@ -60,14 +79,38 @@ const Footer = () => {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [initialConfig, vendorId]);
+
+  const sysConfig = initialConfig
+    ? {
+        siteName: initialConfig.siteName || "Storefront",
+        logoUrl: initialConfig.logoUrl || "",
+        description: initialConfig.description || "",
+        contactAddress: initialConfig.contactAddress || "",
+        location: initialConfig.location || "",
+        businessHours: initialConfig.businessHours || "",
+        whatsappContact: initialConfig.whatsappContact || "",
+        themeConfig: initialConfig.themeConfig,
+      }
+    : fetchedConfig;
+
+  const resolvedCategories = vendorId
+    ? (categoryLinks || []).slice(0, 2)
+    : categoryLinks && categoryLinks.length > 0
+      ? categoryLinks.slice(0, 2)
+      : DEFAULT_FOOTER_CATEGORIES;
 
   const whatsappLink = sysConfig.whatsappContact
     ? `https://wa.me/${sysConfig.whatsappContact.replace(/\D/g, "")}`
     : "#contact-info";
 
+  const backgroundColor = sysConfig.themeConfig?.backgroundColor || "#FAF9F6";
+
   return (
-    <footer className="w-full bg-[#FAF9F6] text-[#2D2B2A] border-t border-border mt-auto font-sans">
+    <footer
+      className="w-full text-[#2D2B2A] border-t border-border mt-auto font-sans"
+      style={{ backgroundColor }}
+    >
       <div className="max-w-7xl mx-auto px-6 py-16 grid grid-cols-1 md:grid-cols-4 gap-12 md:gap-8">
         {/* Brand Section */}
         <div className="flex flex-col gap-6">
@@ -88,8 +131,8 @@ const Footer = () => {
           )}
 
           <p className="text-sm text-muted-foreground max-w-xs leading-relaxed">
-            Modern fashion and beauty essentials for the woman becoming
-            everything she imagined.
+            {sysConfig.description ||
+              "Modern fashion and beauty essentials for the woman becoming everything she imagined."}
           </p>
           <div className="flex items-center gap-3 mt-2">
             <Link
@@ -135,22 +178,16 @@ const Footer = () => {
                 Best sellers
               </Link>
             </li>
-            <li>
-              <Link
-                href="/shop?category=shoe"
-                className="hover:text-foreground transition-colors duration-200"
-              >
-                Shoes
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/shop?category=clothes"
-                className="hover:text-foreground transition-colors duration-200"
-              >
-                Clothes
-              </Link>
-            </li>
+            {resolvedCategories.map((cat) => (
+              <li key={cat.href}>
+                <Link
+                  href={cat.href}
+                  className="hover:text-foreground transition-colors duration-200"
+                >
+                  {cat.label}
+                </Link>
+              </li>
+            ))}
           </ul>
         </div>
 
@@ -231,9 +268,14 @@ const Footer = () => {
       </div>
 
       {/* Footer Bottom Bar */}
-      <div className="w-full border-t border-[#EAE8E4]/60 bg-[#FAF9F6]">
+      <div
+        className="w-full border-t border-[#EAE8E4]/60"
+        style={{ backgroundColor }}
+      >
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-widest text-[#76726E] uppercase">
-          <div>© {currentYear} Betime Technologies. ALL RIGHTS RESERVED.</div>
+          <div>
+            © {currentYear} {sysConfig.siteName}. ALL RIGHTS RESERVED.
+          </div>
           <div className="flex gap-4 md:gap-6 items-center">
             <Link
               href="/#privacy"
@@ -249,7 +291,9 @@ const Footer = () => {
               Terms
             </Link>
             <span>·</span>
-            <span className="text-muted-foreground/80">Payments Secured</span>
+            <span className="text-muted-foreground/80">
+              {vendorId ? "Powered by GlobexMall" : "Payments Secured"}
+            </span>
           </div>
         </div>
       </div>
