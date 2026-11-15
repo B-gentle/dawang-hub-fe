@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import Link from "next/link";
 import {
   LuStore,
   LuImage,
@@ -102,6 +103,7 @@ export default function StoreSetupPage() {
   const [selectedPlanId, setSelectedPlanId] = useState<string>("yearly");
   const [submitting, setSubmitting] = useState(false);
   const [mobilePreviewOpen, setMobilePreviewOpen] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   const [resolvingAccount, setResolvingAccount] = useState(false);
   const [resolvedAccountName, setResolvedAccountName] = useState("");
@@ -218,11 +220,26 @@ export default function StoreSetupPage() {
       return;
     }
 
+    if (!termsAccepted) {
+      toast.error(
+        "Please read and accept the Terms & Conditions and Privacy Policy to continue",
+      );
+      return;
+    }
+
     setStep(2);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 
   const handlePayAndLaunch = async () => {
+    if (!termsAccepted) {
+      toast.error(
+        "You must accept the Terms & Conditions and Privacy Policy before proceeding",
+      );
+      setStep(1);
+      return;
+    }
+
     const payload = {
       storeName: formData.siteName,
       slug: formData.slug,
@@ -244,6 +261,7 @@ export default function StoreSetupPage() {
       bankCode: formData.bankCode,
       bankName: formData.bankName,
       accountNumber: formData.accountNumber,
+      termsAccepted: true,
     };
 
     try {
@@ -277,7 +295,8 @@ export default function StoreSetupPage() {
   const heroPreviewUrls = heroItems.map((i) => i.previewUrl);
   const imageCount = heroPreviewUrls.length;
   const rootDomain = process.env.NEXT_PUBLIC_ROOT_DOMAIN || "dawang.com";
-  const isStep1Invalid = resolvingAccount || !resolvedAccountName;
+  const isStep1Invalid =
+    resolvingAccount || !resolvedAccountName || !termsAccepted;
 
   return (
     <div className="min-h-screen bg-[#FAF9F6] text-[#151413] font-sans pb-20 lg:pb-0">
@@ -824,6 +843,40 @@ export default function StoreSetupPage() {
                 onResolvedAccountChange={setResolvedAccountName}
                 onResolvingStateChange={setResolvingAccount}
               />
+
+              {/* 6. Compulsory Legal Agreement */}
+              <label className="flex items-start gap-3 p-4 rounded-lg bg-[#FAF9F6] border border-[#EAE8E4] hover:border-[#C4956A] transition-colors cursor-pointer text-xs text-[#151413]">
+                <input
+                  type="checkbox"
+                  required
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-[#C4956A] rounded-xs cursor-pointer shrink-0"
+                />
+                <span className="leading-relaxed text-[#76726E]">
+                  I have read and agree to the{" "}
+                  <Link
+                    href="/terms"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-[#151413] underline hover:text-[#C4956A]"
+                  >
+                    Terms &amp; Conditions
+                  </Link>{" "}
+                  and{" "}
+                  <Link
+                    href="/privacy"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="font-bold text-[#151413] underline hover:text-[#C4956A]"
+                  >
+                    Privacy Policy
+                  </Link>
+                  , including the 2% platform service fee and 24-hour delivery
+                  escrow release rules.{" "}
+                  <strong className="text-rose-600">*</strong>
+                </span>
+              </label>
 
               <button
                 type="submit"
