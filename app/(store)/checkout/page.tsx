@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import Cookies from "js-cookie";
-import { FiArrowLeft, FiShoppingBag, FiCheckCircle } from "react-icons/fi";
+import { FiArrowLeft, FiShoppingBag, FiAlertTriangle } from "react-icons/fi";
 import { toast } from "sonner";
 import { useCart } from "@/context/CartContext";
 import CheckoutForm, {
@@ -13,6 +13,7 @@ import OrderSummaryCard from "@/components/checkout/OrderSummaryCard";
 import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
 import { AddressPayload } from "@/lib/api/users-api";
+import { vendorApi } from "@/lib/api/vendor-api";
 
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
@@ -20,12 +21,62 @@ const TOKEN_COOKIE_NAME =
 export default function CheckoutPage() {
   const { cart, subtotal, clearCart, isMounted } = useCart();
   const [isProcessing, setIsProcessing] = useState(false);
-  const [orderComplete, setOrderComplete] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
-  const shippingFee = subtotal >= 150000 || subtotal === 0 ? 0 : 5000;
+  const [vendorId, setVendorId] = useState<string | undefined>(undefined);
+  const [selectedState, setSelectedState] = useState<string>("Rivers");
+  const [shippingFee, setShippingFee] = useState<number>(5000);
+  const [deliverySupported, setDeliverySupported] = useState<boolean>(true);
+  const [checkingShipping, setCheckingShipping] = useState<boolean>(false);
 
+  // Detect vendorId from cart items or current storefront subdomain
+  useEffect(() => {
+    let active = true;
+
+    const resolveVendor = async () => {
+      const cartVendorId = cart[0]?.product?.vendorId || undefined;
+      if (cartVendorId) {
+        if (active) setVendorId(cartVendorId);
+        return;
+      }
+
+      if (typeof window !== "undefined") {
+        const host = window.location.hostname;
+        const rootDomain =
+          process.env.NEXT_PUBLIC_ROOT_DOMAIN || "globexmall.com";
+        let slug = "";
+
+        if (host.endsWith(".localhost") && host !== "localhost") {
+          slug = host.replace(".localhost", "");
+        } else if (
+          host.endsWith(`.${rootDomain}`) &&
+          host !== rootDomain &&
+          host !== `www.${rootDomain}`
+        ) {
+          slug = host.replace(`.${rootDomain}`, "");
+        }
+
+        if (slug) {
+          try {
+            const store = await vendorApi.getStorefrontBySlug(slug);
+            if (active && store?.id) {
+              setVendorId(store.id);
+            }
+          } catch {
+            // fallback to platform checkout
+          }
+        }
+      }
+    };
+
+    resolveVendor();
+    return () => {
+      active = false;
+    };
+  }, [cart]);
+
+  // Fetch user profile & default address
   useEffect(() => {
     let active = true;
 
@@ -33,9 +84,7 @@ export default function CheckoutPage() {
       const token = Cookies.get(TOKEN_COOKIE_NAME);
       if (!token) return;
 
-      queueMicrotask(() => {
-        if (active) setIsLoggedIn(true);
-      });
+      if (active) setIsLoggedIn(true);
 
       try {
         const [userRes, addressesRes] = await Promise.allSettled([
@@ -60,13 +109,15 @@ export default function CheckoutPage() {
         }
 
         if (user) {
+          const resolvedState = defaultAddr?.state || user.state || "Rivers";
+          setSelectedState(resolvedState);
           setUserProfile({
             ...user,
             phoneNumber: user.phoneNumber || "",
             streetAddress:
               defaultAddr?.streetAddress || user.streetAddress || "",
             city: defaultAddr?.city || user.city || "Port Harcourt",
-            state: defaultAddr?.state || user.state || "Rivers",
+            state: resolvedState,
           });
         }
       } catch (err) {
@@ -78,11 +129,48 @@ export default function CheckoutPage() {
     };
 
     fetchUserData();
-
     return () => {
       active = false;
     };
   }, []);
+
+  // Fetch live state shipping rate whenever vendorId or selectedState changes
+  useEffect(() => {
+    if (!selectedState) return;
+    let active = true;
+
+    const fetchShipping = async () => {
+      if (!vendorId) {
+        if (active) {
+          setDeliverySupported(true);
+          setShippingFee(subtotal >= 150000 || subtotal === 0 ? 0 : 5000);
+        }
+        return;
+      }
+
+      try {
+        if (active) setCheckingShipping(true);
+        const res = await vendorApi.getShippingFeeForState(
+          vendorId,
+          selectedState,
+        );
+        if (!active) return;
+        setDeliverySupported(res.supported);
+        setShippingFee(res.supported ? Number(res.fee) || 0 : 0);
+      } catch {
+        if (!active) return;
+        setDeliverySupported(true);
+        setShippingFee(0);
+      } finally {
+        if (active) setCheckingShipping(false);
+      }
+    };
+
+    fetchShipping();
+    return () => {
+      active = false;
+    };
+  }, [vendorId, selectedState, subtotal]);
 
   const handleCheckoutSubmit = async (shippingData: ShippingAddressData) => {
     if (cart.length === 0) {
@@ -90,10 +178,22 @@ export default function CheckoutPage() {
       return;
     }
 
+    if (shippingData.state && shippingData.state !== selectedState) {
+      setSelectedState(shippingData.state);
+    }
+
+    if (!deliverySupported) {
+      toast.error(
+        `This store does not currently deliver to ${shippingData.state}. Please choose a supported state.`,
+      );
+      return;
+    }
+
     try {
       setIsProcessing(true);
 
       const orderPayload = {
+        vendorId,
         shippingAddress: {
           firstName: shippingData.firstName,
           lastName: shippingData.lastName,
@@ -148,31 +248,6 @@ export default function CheckoutPage() {
     );
   }
 
-  if (orderComplete) {
-    return (
-      <div className="min-h-[70vh] bg-white font-sans text-[#151413] flex items-center justify-center px-4">
-        <div className="max-w-md w-full py-12 px-6 bg-[#FAF9F6] border border-[#EAE8E4] rounded-lg text-center flex flex-col items-center gap-4">
-          <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center text-emerald-600">
-            <FiCheckCircle className="w-8 h-8" />
-          </div>
-          <h1 className="font-heading text-2xl font-bold uppercase tracking-tight">
-            Order Confirmed!
-          </h1>
-          <p className="text-xs text-[#76726E] leading-relaxed">
-            Thank you for shopping with Dawang Stores. Your order details have
-            been received and sent to your email.
-          </p>
-          <Link
-            href={isLoggedIn ? "/account" : "/shop"}
-            className="mt-2 px-6 py-3 bg-[#151413] text-white text-xs font-bold uppercase tracking-widest rounded-md hover:bg-[#2A2725] transition-colors"
-          >
-            {isLoggedIn ? "View My Orders" : "Continue Shopping"}
-          </Link>
-        </div>
-      </div>
-    );
-  }
-
   if (cart.length === 0) {
     return (
       <div className="min-h-[60vh] bg-white font-sans text-[#151413] flex items-center justify-center px-4">
@@ -211,13 +286,26 @@ export default function CheckoutPage() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-8 py-8 sm:py-12">
+        {!deliverySupported && (
+          <div className="mb-6 p-4 rounded-lg bg-rose-50 border border-rose-200 flex items-center gap-3 text-xs text-rose-800">
+            <FiAlertTriangle className="w-5 h-5 text-rose-600 shrink-0" />
+            <span>
+              <strong>Delivery Unavailable for {selectedState}:</strong> This
+              vendor has not enabled shipping to{" "}
+              <strong>{selectedState}</strong>. Please select another delivery
+              state.
+            </span>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-start">
           <div className="lg:col-span-7 bg-white">
             <CheckoutForm
               onSubmit={handleCheckoutSubmit}
-              isProcessing={isProcessing}
+              isProcessing={isProcessing || checkingShipping}
               isLoggedIn={isLoggedIn}
               user={userProfile}
+              onStateChange={(st: string) => setSelectedState(st)}
             />
           </div>
 

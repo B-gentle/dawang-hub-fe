@@ -13,14 +13,20 @@ import {
   FiEdit2,
   FiStar,
   FiPhone,
+  FiCheckCircle,
+  FiMapPin,
+  FiClock,
 } from "react-icons/fi";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
 import { AddressPayload, UpdateProfilePayload } from "@/lib/api/users-api";
+import { ordersApi, OrderResponse } from "@/lib/api/orders-api";
 import AddressModal from "@/components/account/AddressModal";
 import EditProfileModal from "@/components/account/EditProfileModal";
-import OrderList, { OrderResponse } from "@/components/account/OrderList";
+import OrderList, {
+  OrderResponse as LegacyOrderResponse,
+} from "@/components/account/OrderList";
 
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
@@ -32,6 +38,9 @@ export default function AccountPage() {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [addresses, setAddresses] = useState<AddressPayload[]>([]);
   const [orders, setOrders] = useState<OrderResponse[]>([]);
+  const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(
+    null,
+  );
 
   // Modal controls
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -51,7 +60,7 @@ export default function AccountPage() {
       const [meRes, addrRes, ordersRes] = await Promise.allSettled([
         apiClient.getMe(),
         apiClient.getAddresses(),
-        apiClient.getUserOrders(),
+        ordersApi.getUserOrders(),
       ]);
 
       if (meRes.status === "fulfilled") setProfile(meRes.value as UserProfile);
@@ -59,7 +68,7 @@ export default function AccountPage() {
         setAddresses(addrRes.value as AddressPayload[]);
       }
       if (ordersRes.status === "fulfilled" && Array.isArray(ordersRes.value)) {
-        setOrders(ordersRes.value as OrderResponse[]);
+        setOrders(ordersRes.value);
       }
     } catch (err) {
       console.error("Failed to load account details:", err);
@@ -72,9 +81,7 @@ export default function AccountPage() {
     let active = true;
 
     queueMicrotask(() => {
-      if (active) {
-        loadAccountData();
-      }
+      if (active) loadAccountData();
     });
 
     return () => {
@@ -82,6 +89,29 @@ export default function AccountPage() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const handleConfirmDelivery = async (orderId: string) => {
+    if (
+      !confirm(
+        "Confirm that you have received this order in good condition? This will release the payment from escrow to the vendor.",
+      )
+    ) {
+      return;
+    }
+
+    try {
+      setConfirmingOrderId(orderId);
+      await ordersApi.confirmOrderDelivery(orderId);
+      toast.success("Delivery confirmed! Thank you for shopping with us.");
+      await loadAccountData();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to confirm delivery",
+      );
+    } finally {
+      setConfirmingOrderId(null);
+    }
+  };
 
   const handleLogout = () => {
     apiClient.logout();
@@ -147,6 +177,10 @@ export default function AccountPage() {
     );
   }
 
+  const awaitingConfirmationOrders = orders.filter((o) =>
+    ["SHIPPED", "AWAITING_CONFIRMATION"].includes(o.status?.toUpperCase()),
+  );
+
   return (
     <div className="min-h-screen bg-white font-sans text-[#151413]">
       {/* Header Banner */}
@@ -173,7 +207,6 @@ export default function AccountPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
           {/* Profile & Addresses Sidebar */}
           <div className="lg:col-span-5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md p-6 flex flex-col gap-6">
-            {/* User Profile Card */}
             <div className="flex justify-between items-start pb-4 border-b border-[#EAE8E4]">
               <div className="flex items-center gap-3">
                 <div className="w-12 h-12 rounded-full bg-[#151413] text-white flex items-center justify-center font-bold text-sm uppercase shrink-0">
@@ -275,14 +308,92 @@ export default function AccountPage() {
             </div>
           </div>
 
-          {/* Order History Column */}
+          {/* Order History & Live Shipment Tracking Column */}
           <div className="lg:col-span-7 flex flex-col gap-6">
+            {/* Active Shipments Awaiting Delivery Confirmation */}
+            {awaitingConfirmationOrders.length > 0 && (
+              <div className="bg-[#FAF9F6] border border-[#C4956A]/50 rounded-lg p-5 flex flex-col gap-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-bold uppercase tracking-wider text-[#151413] flex items-center gap-1.5">
+                    <FiClock className="w-4 h-4 text-[#C4956A]" /> Active
+                    Shipments & Delivery Confirmation
+                  </span>
+                </div>
+
+                <div className="flex flex-col gap-3">
+                  {awaitingConfirmationOrders.map((order) => (
+                    <div
+                      key={order.id}
+                      className="bg-white p-4 rounded-md border border-[#EAE8E4] flex flex-col gap-3 text-xs"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <p className="font-mono font-bold text-[#151413]">
+                            Order #{order.id.slice(0, 8).toUpperCase()}
+                          </p>
+                          <p className="text-[11px] text-[#76726E]">
+                            Status:{" "}
+                            <strong className="text-[#C4956A]">
+                              {order.status.replace("_", " ")}
+                            </strong>
+                            {order.courierName ? ` • ${order.courierName}` : ""}
+                            {order.trackingNumber
+                              ? ` (${order.trackingNumber})`
+                              : ""}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={confirmingOrderId === order.id}
+                          onClick={() => handleConfirmDelivery(order.id)}
+                          className="px-4 py-2 bg-emerald-700 text-white text-[11px] font-bold uppercase tracking-wider rounded-md hover:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                        >
+                          <FiCheckCircle className="w-3.5 h-3.5" />
+                          {confirmingOrderId === order.id
+                            ? "Confirming..."
+                            : "Confirm Order Delivery"}
+                        </button>
+                      </div>
+
+                      {order.currentLocation && (
+                        <div className="p-2.5 rounded bg-[#FAF9F6] border border-[#EAE8E4] flex items-center gap-2 text-[11px]">
+                          <FiMapPin className="w-3.5 h-3.5 text-[#C4956A] shrink-0" />
+                          <span>
+                            Current Location:{" "}
+                            <strong>{order.currentLocation}</strong>
+                          </span>
+                        </div>
+                      )}
+
+                      {order.trackingHistory &&
+                        order.trackingHistory.length > 0 && (
+                          <div className="pl-3 border-l-2 border-[#C4956A] flex flex-col gap-1.5">
+                            {order.trackingHistory.map((cp, idx) => (
+                              <div key={idx} className="text-[11px]">
+                                <span className="font-bold text-[#151413]">
+                                  {cp.location}
+                                </span>
+                                {cp.note ? ` — ${cp.note}` : ""}
+                                <span className="block text-[10px] text-[#A39E98]">
+                                  {new Date(cp.timestamp).toLocaleString()}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
             <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413] flex items-center gap-2 pb-2 border-b border-[#EAE8E4]">
               <FiShoppingBag className="w-4 h-4 text-[#C4956A]" /> Order History
               ({orders.length})
             </h2>
 
-            <OrderList orders={orders} />
+            <OrderList orders={orders as unknown as LegacyOrderResponse[]} />
           </div>
         </div>
       </div>

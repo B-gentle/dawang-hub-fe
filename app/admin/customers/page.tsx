@@ -5,10 +5,14 @@ import { LuSearch, LuX, LuRefreshCw } from "react-icons/lu";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import { UserAccount } from "@/lib/api/users-api";
+import { vendorApi, VendorProfile } from "@/lib/api/vendor-api";
+import { ordersApi, OrderResponse } from "@/lib/api/orders-api";
 import CustomersTable from "@/components/admin/CustomersTable";
 
 export default function AdminCustomersPage() {
   const [users, setUsers] = useState<UserAccount[]>([]);
+  const [vendors, setVendors] = useState<VendorProfile[]>([]);
+  const [vendorOrders, setVendorOrders] = useState<OrderResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -20,13 +24,18 @@ export default function AdminCustomersPage() {
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "suspended"
   >("all");
+  const [vendorFilter, setVendorFilter] = useState<string>("all");
 
   const loadUsers = async () => {
     try {
       setLoading(true);
       setError(null);
-      const data = await apiClient.getAllUsers();
-      setUsers(Array.isArray(data) ? data : []);
+      const [usersData, vendorsData] = await Promise.all([
+        apiClient.getAllUsers(),
+        vendorApi.getAllVendorsAdmin?.().catch(() => [] as VendorProfile[]),
+      ]);
+      setUsers(Array.isArray(usersData) ? usersData : []);
+      setVendors(Array.isArray(vendorsData) ? vendorsData : []);
     } catch (err) {
       const msg =
         err instanceof Error ? err.message : "Failed to fetch user accounts";
@@ -39,17 +48,33 @@ export default function AdminCustomersPage() {
 
   useEffect(() => {
     let isMounted = true;
-
     queueMicrotask(() => {
-      if (isMounted) {
-        loadUsers();
-      }
+      if (isMounted) loadUsers();
     });
-
     return () => {
       isMounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (vendorFilter === "all") return;
+
+    let active = true;
+    ordersApi
+      .getAllOrdersAdmin({ vendorId: vendorFilter, limit: 500 })
+      .then((res) => {
+        if (!active) return;
+        const list = Array.isArray(res) ? res : res?.data || [];
+        setVendorOrders(list);
+      })
+      .catch(() => {
+        if (active) setVendorOrders([]);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [vendorFilter]);
 
   const handleRoleChange = async (
     userId: string,
@@ -112,18 +137,32 @@ export default function AdminCustomersPage() {
     setSearchQuery("");
     setRoleFilter("all");
     setStatusFilter("all");
+    setVendorFilter("all");
+    setVendorOrders([]);
   };
+
+  const vendorBuyerEmails = useMemo(() => {
+    if (vendorFilter === "all") return null;
+    const emails = new Set<string>();
+    vendorOrders.forEach((o) => {
+      if (o.shippingAddress?.email) {
+        emails.add(o.shippingAddress.email.toLowerCase());
+      }
+    });
+    return emails;
+  }, [vendorFilter, vendorOrders]);
 
   const filteredUsers = useMemo(() => {
     return users.filter((u) => {
-      // Role Filter
       if (roleFilter !== "all" && u.role !== roleFilter) return false;
-
-      // Status Filter
       if (statusFilter === "active" && !u.isActive) return false;
       if (statusFilter === "suspended" && u.isActive) return false;
 
-      // Search Filter
+      if (vendorBuyerEmails) {
+        const email = u.email?.toLowerCase() || "";
+        if (!vendorBuyerEmails.has(email)) return false;
+      }
+
       if (searchQuery.trim() !== "") {
         const query = searchQuery.toLowerCase();
         const fullName =
@@ -135,18 +174,18 @@ export default function AdminCustomersPage() {
 
       return true;
     });
-  }, [users, searchQuery, roleFilter, statusFilter]);
+  }, [users, searchQuery, roleFilter, statusFilter, vendorBuyerEmails]);
 
   return (
     <div className="flex flex-col gap-6 font-sans pb-12 text-[#1A1A1A]">
-      {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-bold text-[#1A1A1A] flex items-center gap-2">
-            Customers & Users ({users.length})
+            Customers & Users ({filteredUsers.length})
           </h1>
           <p className="text-xs text-[#76726E]">
-            Manage customer accounts, roles, and security access permissions
+            Manage customer accounts, storefront buyers, roles, and access
+            permissions
           </p>
         </div>
         <button
@@ -158,8 +197,7 @@ export default function AdminCustomersPage() {
       </div>
 
       {/* Controls Bar */}
-      <div className="bg-white p-4 rounded-lg border border-[#EAE8E4] flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 shadow-xs">
-        {/* Search Input */}
+      <div className="bg-white p-4 rounded-lg border border-[#EAE8E4] flex flex-col lg:flex-row justify-between items-stretch lg:items-center gap-4 shadow-xs">
         <div className="relative flex-1 max-w-md">
           <LuSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
           <input
@@ -179,8 +217,26 @@ export default function AdminCustomersPage() {
           )}
         </div>
 
-        {/* Dropdown Filters */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {vendors.length > 0 && (
+            <select
+              value={vendorFilter}
+              onChange={(e) => {
+                const val = e.target.value;
+                setVendorFilter(val);
+                if (val === "all") setVendorOrders([]);
+              }}
+              className="p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs font-semibold text-[#1A1A1A] focus:outline-hidden focus:border-[#C4956A] cursor-pointer"
+            >
+              <option value="all">All Storefronts</option>
+              {vendors.map((v) => (
+                <option key={v.id} value={v.id}>
+                  Buyers of {v.storeName}
+                </option>
+              ))}
+            </select>
+          )}
+
           <select
             value={roleFilter}
             onChange={(e) =>
@@ -207,7 +263,6 @@ export default function AdminCustomersPage() {
         </div>
       </div>
 
-      {/* Directory Table Component */}
       <CustomersTable
         loading={loading}
         error={error}

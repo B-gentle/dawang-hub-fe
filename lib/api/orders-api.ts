@@ -21,14 +21,7 @@ export interface CreateOrderPayload {
   shippingAddress: ShippingAddressPayload;
   items?: OrderItemPayload[];
   paymentIntentId?: string;
-}
-
-export interface OrderResponse {
-  id: string;
-  totalAmount: number;
-  status: string;
-  shippingAddress: ShippingAddressPayload;
-  createdAt: string;
+  vendorId?: string;
 }
 
 export interface InitializePaymentResponse {
@@ -47,19 +40,37 @@ export interface OrderItemResponse {
   id: string;
   productName: string;
   unitPrice: number;
+  vendorUnitPrice?: number;
   quantity: number;
   selectedSize?: string;
   selectedColor?: string;
 }
 
+export interface ShipmentCheckpoint {
+  location: string;
+  status: string;
+  note?: string;
+  updatedBy: "VENDOR" | "ADMIN" | "SYSTEM" | "CUSTOMER";
+  timestamp: string;
+}
+
 export interface OrderResponse {
   id: string;
   totalAmount: number;
+  shippingFee?: number;
+  vendorPayoutAmount?: number;
+  escrowCredited?: boolean;
+  escrowReleased?: boolean;
   status: string;
   shippingAddress: ShippingAddressPayload;
   items?: OrderItemResponse[];
   courierName?: string;
   trackingNumber?: string;
+  currentLocation?: string;
+  trackingHistory?: ShipmentCheckpoint[];
+  deliveredAt?: string;
+  confirmedAt?: string;
+  vendorId?: string;
   createdAt: string;
 }
 
@@ -74,12 +85,21 @@ export interface GetOrdersParams {
   skip?: number;
   limit?: number;
   sort?: "ASC" | "DESC";
+  vendorId?: string;
 }
 
 export interface UpdateOrderStatusPayload {
-  status: "PENDING" | "PAID" | "SHIPPED" | "DELIVERED" | "CANCELLED";
+  status:
+    | "PENDING"
+    | "PAID"
+    | "SHIPPED"
+    | "AWAITING_CONFIRMATION"
+    | "DELIVERED"
+    | "CANCELLED";
   courierName?: string;
   trackingNumber?: string;
+  currentLocation?: string;
+  locationNote?: string;
 }
 
 export const ordersApi = {
@@ -93,6 +113,31 @@ export const ordersApi = {
 
   getOrderById: (id: string) => fetcher<OrderResponse>(`/orders/${id}`),
 
+  confirmOrderDelivery: (id: string) =>
+    fetcher<OrderResponse>(`/orders/${id}/confirm-delivery`, {
+      method: "PATCH",
+    }),
+
+  getVendorOrders: (params?: GetOrdersParams) => {
+    const searchParams = new URLSearchParams();
+    if (params?.skip !== undefined)
+      searchParams.set("skip", params.skip.toString());
+    if (params?.limit !== undefined)
+      searchParams.set("limit", params.limit.toString());
+    if (params?.sort) searchParams.set("sort", params.sort);
+
+    const queryString = searchParams.toString();
+    return fetcher<PaginatedOrdersResponse>(
+      `/orders/vendor/me${queryString ? `?${queryString}` : ""}`,
+    );
+  },
+
+  updateVendorOrderStatus: (id: string, payload: UpdateOrderStatusPayload) =>
+    fetcher<OrderResponse>(`/orders/vendor/${id}/status`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+
   getAllOrdersAdmin: (params?: GetOrdersParams) => {
     const searchParams = new URLSearchParams();
     if (params?.skip !== undefined)
@@ -100,6 +145,7 @@ export const ordersApi = {
     if (params?.limit !== undefined)
       searchParams.set("limit", params.limit.toString());
     if (params?.sort) searchParams.set("sort", params.sort);
+    if (params?.vendorId) searchParams.set("vendorId", params.vendorId);
 
     const queryString = searchParams.toString();
     return fetcher<PaginatedOrdersResponse>(

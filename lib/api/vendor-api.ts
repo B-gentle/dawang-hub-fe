@@ -2,6 +2,12 @@ import { API_BASE_URL, fetcher, getAuthToken } from "./fetcher";
 
 export type VendorStatus = "PENDING" | "APPROVED" | "SUSPENDED";
 
+export interface StateShippingRate {
+  state: string;
+  enabled: boolean;
+  fee: number;
+}
+
 export interface VendorProfile {
   id: string;
   userId: string;
@@ -11,9 +17,20 @@ export interface VendorProfile {
   logoUrl?: string;
   bannerUrl?: string;
   whatsappNumber?: string;
+  planId?: string;
+  planName?: string;
+  subscriptionPlan?: string;
+  planExpiresAt?: string;
+  subscriptionExpiresAt?: string;
+  expiresAt?: string;
+  pendingBalance?: number;
+  withdrawableBalance?: number;
+  totalWithdrawn?: number;
+  shippingRates?: StateShippingRate[];
   themeConfig?: {
     primaryColor?: string;
     accentColor?: string;
+    backgroundColor?: string;
     heroType?: "IMAGE" | "VIDEO";
     heroImages?: string[];
     heroVideoId?: string;
@@ -22,6 +39,12 @@ export interface VendorProfile {
     location?: string;
     contactAddress?: string;
     minFreeDeliveryFare?: number;
+    navCategories?: Array<{
+      label?: string;
+      name?: string;
+      slug?: string;
+      id?: string;
+    }>;
   };
   businessHours?:
     Record<string, { open: string; close: string; closed?: boolean }> | string;
@@ -52,13 +75,81 @@ export interface VendorDashboardStats {
   totalProducts: number;
   totalOrders: number;
   totalRevenue: number;
+  pendingBalance?: number;
+  withdrawableBalance?: number;
+  totalWithdrawn?: number;
   recentOrders: Array<{
     id: string;
     totalAmount: number;
+    vendorPayoutAmount?: number;
     status: string;
     createdAt: string;
     user?: { firstName: string; lastName: string; email: string };
   }>;
+}
+
+export interface VendorWithdrawalRecord {
+  id: string;
+  amount: number;
+  reference: string;
+  status: "PENDING" | "SUCCESS" | "FAILED";
+  bankCode: string;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  sessionId?: string;
+  failureReason?: string;
+  createdAt: string;
+}
+
+export interface VendorWalletResponse {
+  pendingBalance: number;
+  withdrawableBalance: number;
+  totalWithdrawn: number;
+  bankAccount: {
+    bankCode?: string;
+    bankName?: string;
+    accountNumber?: string;
+    accountName?: string;
+  };
+  pendingTransactions: Array<{
+    id: string;
+    totalAmount: number;
+    vendorPayoutAmount: number;
+    shippingFee: number;
+    status: string;
+    currentLocation?: string;
+    deliveredAt?: string;
+    createdAt: string;
+  }>;
+  releasedTransactions: Array<{
+    id: string;
+    totalAmount: number;
+    vendorPayoutAmount: number;
+    shippingFee: number;
+    status: string;
+    confirmedAt?: string;
+    createdAt: string;
+  }>;
+  withdrawals: VendorWithdrawalRecord[];
+}
+
+export interface AdminVendorSummary extends VendorProfile {
+  status: "PENDING" | "APPROVED" | "SUSPENDED";
+  pendingBalance?: number;
+  withdrawableBalance?: number;
+  totalWithdrawn?: number;
+  bankName?: string;
+  accountNumber?: string;
+  accountName?: string;
+  productCount?: number;
+  orderCount?: number;
+  owner?: {
+    id: string;
+    firstName?: string;
+    lastName?: string;
+    email?: string;
+  };
 }
 
 export const vendorApi = {
@@ -107,6 +198,37 @@ export const vendorApi = {
 
   getMyDashboard: () => fetcher<VendorDashboardStats>("/vendors/me/dashboard"),
 
+  getMyWallet: () => fetcher<VendorWalletResponse>("/vendors/me/wallet"),
+
+  requestWithdrawal: (amount: number) =>
+    fetcher<VendorWithdrawalRecord>("/vendors/me/withdraw", {
+      method: "POST",
+      body: JSON.stringify({ amount }),
+    }),
+
+  updateShippingRates: (shippingRates: StateShippingRate[]) =>
+    fetcher<StateShippingRate[]>("/vendors/me/shipping-rates", {
+      method: "PATCH",
+      body: JSON.stringify({ shippingRates }),
+    }),
+
+  getShippingFeeForState: (vendorId: string, state: string) =>
+    fetcher<{ supported: boolean; fee: number }>(
+      `/vendors/${vendorId}/shipping-fee?state=${encodeURIComponent(state)}`,
+    ),
+
   getStorefrontBySlug: (slug: string) =>
     fetcher<VendorProfile>(`/vendors/storefront/${slug}`),
+
+  getAllVendorsAdmin: (): Promise<AdminVendorSummary[]> =>
+    fetcher<AdminVendorSummary[]>("/vendors/admin/all"),
+
+  updateVendorStatusAdmin: (
+    vendorId: string,
+    status: "PENDING" | "APPROVED" | "SUSPENDED",
+  ): Promise<AdminVendorSummary> =>
+    fetcher<AdminVendorSummary>(`/vendors/${vendorId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
 };

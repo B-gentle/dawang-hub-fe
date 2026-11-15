@@ -32,18 +32,60 @@ interface UserProfileData {
   state?: string;
 }
 
-interface CheckoutFormProps {
+export interface CheckoutFormProps {
   onSubmit: (data: ShippingAddressData) => void;
   isProcessing: boolean;
   isLoggedIn: boolean;
   user?: UserProfileData | null;
+  onStateChange?: (state: string) => void;
 }
+
+const NIGERIAN_STATES = [
+  "Abia",
+  "Adamawa",
+  "Akwa Ibom",
+  "Anambra",
+  "Bauchi",
+  "Bayelsa",
+  "Benue",
+  "Borno",
+  "Cross River",
+  "Delta",
+  "Ebonyi",
+  "Edo",
+  "Ekiti",
+  "Enugu",
+  "FCT",
+  "Gombe",
+  "Imo",
+  "Jigawa",
+  "Kaduna",
+  "Kano",
+  "Katsina",
+  "Kebbi",
+  "Kogi",
+  "Kwara",
+  "Lagos",
+  "Nasarawa",
+  "Niger",
+  "Ogun",
+  "Ondo",
+  "Osun",
+  "Oyo",
+  "Plateau",
+  "Rivers",
+  "Sokoto",
+  "Taraba",
+  "Yobe",
+  "Zamfara",
+];
 
 export default function CheckoutForm({
   onSubmit,
   isProcessing,
   isLoggedIn,
   user,
+  onStateChange,
 }: CheckoutFormProps) {
   const [formData, setFormData] = useState<ShippingAddressData>({
     firstName: "",
@@ -58,16 +100,17 @@ export default function CheckoutForm({
 
   useEffect(() => {
     if (user) {
+      const normalizedState = user.state === "Abuja" ? "FCT" : user.state || "";
       queueMicrotask(() => {
         setFormData((prev) => ({
           ...prev,
           firstName: user.firstName || prev.firstName,
           lastName: user.lastName || prev.lastName,
           email: user.email || prev.email,
-          phoneNumber: user.phoneNumber || prev.phone,
+          phone: user.phoneNumber || prev.phone,
           streetAddress: user.streetAddress || prev.streetAddress,
           city: user.city || prev.city,
-          state: user.state || prev.state,
+          state: normalizedState || prev.state,
         }));
       });
     }
@@ -80,6 +123,9 @@ export default function CheckoutForm({
   ) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    if (name === "state") {
+      onStateChange?.(value);
+    }
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -237,14 +283,11 @@ export default function CheckoutForm({
               onChange={handleChange}
               className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A]"
             >
-              <option value="Rivers">Rivers State</option>
-              <option value="Lagos">Lagos State</option>
-              <option value="Abuja">Abuja (FCT)</option>
-              <option value="Delta">Delta State</option>
-              <option value="Akwa Ibom">Akwa Ibom State</option>
-              <option value="Edo">Edo State</option>
-              <option value="Enugu">Enugu State</option>
-              <option value="Other">Other States (Nationwide Delivery)</option>
+              {NIGERIAN_STATES.map((st) => (
+                <option key={st} value={st}>
+                  {st === "FCT" ? "Abuja (FCT)" : `${st} State`}
+                </option>
+              ))}
             </select>
           </div>
         </div>

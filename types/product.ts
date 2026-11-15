@@ -13,6 +13,9 @@ export interface Product {
   slug: string;
   description?: string;
   price: number;
+  vendorBasePrice?: number | null;
+  vendorBaseDiscountPrice?: number | null;
+  vendorId?: string | null;
   discountPrice?: number;
   stockQuantity: number;
   sku: string;

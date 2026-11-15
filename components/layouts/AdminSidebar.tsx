@@ -15,6 +15,7 @@ import {
   LuCircle,
   LuX,
   LuLogOut,
+  LuStore,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -80,6 +81,7 @@ export function AdminSidebar({ isOpen = false, onClose }: AdminSidebarProps) {
     { label: "Products", href: "/admin/products", icon: LuPackage },
     { label: "Categories", href: "/admin/categories", icon: LuFolderTree },
     { label: "Customers", href: "/admin/customers", icon: LuUsers },
+    { label: "Vendors", href: "/admin/vendors", icon: LuStore },
     { label: "Analytics", href: "/admin/analytics", icon: LuChartBar },
   ];
 

@@ -1,7 +1,14 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LuPackage, LuShoppingBag, LuWallet } from "react-icons/lu";
+import Link from "next/link";
+import {
+  LuPackage,
+  LuShoppingBag,
+  LuWallet,
+  LuClock,
+  LuArrowUpRight,
+} from "react-icons/lu";
 import { vendorApi, VendorDashboardStats } from "@/lib/api/vendor-api";
 
 export default function VendorOverviewPage() {
@@ -26,14 +33,33 @@ export default function VendorOverviewPage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-6 rounded-xl border border-[#EAE8E4]">
           <div className="flex items-center justify-between text-[#76726E] text-xs font-bold uppercase tracking-wider">
-            <span>Total Revenue</span>
-            <LuWallet className="w-4 h-4 text-[#C4956A]" />
+            <span>Withdrawable</span>
+            <LuWallet className="w-4 h-4 text-emerald-600" />
+          </div>
+          <p className="mt-3 text-2xl font-bold text-emerald-700">
+            ₦{Number(stats?.withdrawableBalance || 0).toLocaleString()}
+          </p>
+          <Link
+            href="/vendor/dashboard/wallet"
+            className="mt-2 inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-wider text-[#C4956A] hover:underline"
+          >
+            Withdraw Funds <LuArrowUpRight className="w-3 h-3" />
+          </Link>
+        </div>
+
+        <div className="bg-white p-6 rounded-xl border border-[#EAE8E4]">
+          <div className="flex items-center justify-between text-[#76726E] text-xs font-bold uppercase tracking-wider">
+            <span>Pending Escrow</span>
+            <LuClock className="w-4 h-4 text-amber-500" />
           </div>
           <p className="mt-3 text-2xl font-bold">
-            ₦{Number(stats?.totalRevenue || 0).toLocaleString()}
+            ₦{Number(stats?.pendingBalance || 0).toLocaleString()}
+          </p>
+          <p className="mt-2 text-[10px] text-[#76726E]">
+            Releases on delivery confirmation
           </p>
         </div>
 
@@ -55,10 +81,16 @@ export default function VendorOverviewPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-[#EAE8E4] overflow-hidden">
-        <div className="px-6 py-4 border-b border-[#EAE8E4]">
+        <div className="px-6 py-4 border-b border-[#EAE8E4] flex items-center justify-between">
           <h2 className="text-xs font-bold uppercase tracking-wider">
             Recent Storefront Orders
           </h2>
+          <Link
+            href="/vendor/dashboard/orders"
+            className="text-[11px] font-bold uppercase tracking-wider text-[#C4956A] hover:underline"
+          >
+            View All
+          </Link>
         </div>
 
         {!stats?.recentOrders?.length ? (
@@ -71,7 +103,9 @@ export default function VendorOverviewPage() {
                 className="px-6 py-4 flex items-center justify-between"
               >
                 <div>
-                  <p className="font-mono font-bold">#{order.id.slice(0, 8)}</p>
+                  <p className="font-mono font-bold">
+                    #{order.id.slice(0, 8).toUpperCase()}
+                  </p>
                   <p className="text-[#76726E]">
                     {order.user
                       ? `${order.user.firstName} ${order.user.lastName}`
@@ -80,10 +114,13 @@ export default function VendorOverviewPage() {
                 </div>
                 <div className="text-right">
                   <p className="font-bold">
-                    ₦{Number(order.totalAmount).toLocaleString()}
+                    ₦
+                    {Number(
+                      order.vendorPayoutAmount ?? order.totalAmount,
+                    ).toLocaleString()}
                   </p>
                   <span className="text-[10px] font-bold uppercase text-[#C4956A]">
-                    {order.status}
+                    {order.status.replace("_", " ")}
                   </span>
                 </div>
               </div>
