@@ -26,6 +26,16 @@ export interface AuthResponse {
   accessToken: string;
 }
 
+function setAuthCookie(token?: string) {
+  if (!token) return;
+  Cookies.set(TOKEN_COOKIE_NAME, token, {
+    expires: 7,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+  });
+}
+
 export const authApi = {
   login: async (credentials: { email: string; password: string }) => {
     const response = await fetcher<AuthResponse>("/auth/login", {
@@ -33,14 +43,7 @@ export const authApi = {
       body: JSON.stringify(credentials),
     });
 
-    if (response.accessToken) {
-      Cookies.set(TOKEN_COOKIE_NAME, response.accessToken, {
-        expires: 7,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-      });
-    }
-
+    setAuthCookie(response.accessToken);
     return response;
   },
 
@@ -50,14 +53,7 @@ export const authApi = {
       body: JSON.stringify(data),
     });
 
-    if (response.accessToken) {
-      Cookies.set(TOKEN_COOKIE_NAME, response.accessToken, {
-        expires: 7,
-        sameSite: "lax",
-        secure: process.env.NODE_ENV === "production",
-      });
-    }
-
+    setAuthCookie(response.accessToken);
     return response;
   },
 
@@ -76,6 +72,6 @@ export const authApi = {
   getMe: () => fetcher<UserProfile>("/auth/me"),
 
   logout: () => {
-    Cookies.remove(TOKEN_COOKIE_NAME);
+    Cookies.remove(TOKEN_COOKIE_NAME, { path: "/" });
   },
 };

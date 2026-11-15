@@ -5,14 +5,12 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiUser, FiMail, FiLock, FiArrowRight, FiShield } from "react-icons/fi";
 import { toast } from "sonner";
-import { apiClient } from "@/lib/api-client";
-import { RegisterInput } from "@/lib/api/auth-api";
+import { authApi, RegisterInput } from "@/lib/api/auth-api";
 import { getSafeRedirect, withRedirect } from "@/lib/utils/redirect";
 
 function RegisterForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  // Only internal paths are accepted; empty string if none/invalid.
   const requestedRedirect = getSafeRedirect(searchParams.get("redirect"), "");
   const redirect = requestedRedirect || "/account";
   const isVendorSignup = requestedRedirect.startsWith("/vendor");
@@ -41,7 +39,7 @@ function RegisterForm() {
 
     try {
       setLoading(true);
-      await apiClient.register(formData);
+      await authApi.register(formData);
       toast.success("Account created successfully!");
       router.push(redirect);
       router.refresh();
@@ -182,7 +180,6 @@ function RegisterForm() {
 }
 
 export default function RegisterPage() {
-  // useSearchParams requires a Suspense boundary for production builds
   return (
     <Suspense fallback={null}>
       <RegisterForm />
