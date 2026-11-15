@@ -31,7 +31,7 @@ export default function BecomeVendorCta() {
             id="become-vendor-heading"
             className="font-heading text-2xl font-bold leading-tight sm:text-4xl"
           >
-            Sell your products on Dawang Hub
+            Sell your products on GlobexMall
           </h3>
           <p className="max-w-md text-sm leading-relaxed text-[#B9B4AE]">
             Open your own store, list your products and start selling to

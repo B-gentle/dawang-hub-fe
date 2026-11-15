@@ -27,7 +27,7 @@ export const metadata: Metadata = {
     template: "%s | Globexmall",
   },
   description:
-    "Globexmall Official Store. Modern fashion and beauty essentials for the woman becoming everything she imagined.'",
+    "The ultimate multivendor shopping mall for everything shoppable onlinne. Modern fashion and beauty essentials for everyday use.",
   openGraph: {
     type: "website",
     locale: "en_US",
@@ -35,7 +35,7 @@ export const metadata: Metadata = {
     siteName: "Globexmall",
     title: "Globexmall - Modern Fashion & Beauty Essentials",
     description:
-      "Modern fashion and beauty essentials for the woman becoming everything she imagined.",
+      "The ultimate multivendor shopping mall for everything shoppable onlinne. Modern fashion and beauty essentials for everyday use.",
     images: [
       {
         url: "/og-image.jpeg", // Create and put this image in your public/ folder (1200x630px recommended)
