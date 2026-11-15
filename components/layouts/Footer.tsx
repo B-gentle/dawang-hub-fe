@@ -199,22 +199,6 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
           <ul className="flex flex-col gap-3 text-sm text-muted-foreground">
             <li>
               <Link
-                href="#contact-info"
-                className="hover:text-foreground transition-colors duration-200"
-              >
-                Contact us
-              </Link>
-            </li>
-            <li>
-              <Link
-                href="/help"
-                className="hover:text-foreground transition-colors duration-200"
-              >
-                Delivery & returns
-              </Link>
-            </li>
-            <li>
-              <Link
                 href="/help"
                 className="hover:text-foreground transition-colors duration-200"
               >
@@ -223,10 +207,26 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
             </li>
             <li>
               <Link
-                href="/help"
+                href="#contact-info"
                 className="hover:text-foreground transition-colors duration-200"
               >
-                Help Center
+                Contact us
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/privacy"
+                className="hover:text-foreground transition-colors duration-200"
+              >
+                Privacy Policy
+              </Link>
+            </li>
+            <li>
+              <Link
+                href="/terms"
+                className="hover:text-foreground transition-colors duration-200"
+              >
+                Terms & Conditions
               </Link>
             </li>
           </ul>
@@ -278,14 +278,14 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
           </div>
           <div className="flex gap-4 md:gap-6 items-center">
             <Link
-              href="/#privacy"
+              href="/privacy"
               className="hover:text-foreground transition-colors duration-200"
             >
               Privacy
             </Link>
             <span>·</span>
             <Link
-              href="/#terms"
+              href="/terms"
               className="hover:text-foreground transition-colors duration-200"
             >
               Terms

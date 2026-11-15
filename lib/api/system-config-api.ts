@@ -43,7 +43,10 @@ export interface SystemConfig {
   minFreeDeliveryFare: number;
   paymentEnv?: string;
   vendorPlans?: VendorPlanConfig[];
+  termsAndConditions?: string;
+  privacyPolicy?: string;
   themeConfig?: StoreThemeConfig;
+  updatedAt?: string;
 }
 
 export interface CloudinaryUploadResult {

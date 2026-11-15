@@ -17,6 +17,7 @@ import {
   LuPhone,
   LuBuilding,
   LuLayers,
+  LuFileText,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import {
@@ -25,10 +26,12 @@ import {
   SystemConfig,
   VendorPlanConfig,
 } from "@/lib/api/system-config-api";
+import RichTextEditor from "@/components/common/RichTextEditor";
+import { DEFAULT_TERMS_HTML, DEFAULT_PRIVACY_HTML } from "@/lib/legal-defaults";
 
 export default function AdminSettingsPage() {
   const [activeTab, setActiveTab] = useState<
-    "general" | "hero" | "shipping" | "plans"
+    "general" | "hero" | "shipping" | "plans" | "legal"
   >("general");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -36,16 +39,16 @@ export default function AdminSettingsPage() {
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
   const [sysConfig, setSysConfig] = useState<SystemConfig>({
-    siteName: "Dawang Stores",
+    siteName: "Globexmall",
     logoUrl: "",
     contactAddress: "",
-    location: "Lagos, Nigeria",
+    location: "Port Harcourt, Nigeria",
     businessHours: "Mon - Sat: 9:00 AM - 8:00 PM",
     whatsappContact: "",
     heroType: HeroType.IMAGE,
     heroImages: [],
     heroVideoId: "",
-    minFreeDeliveryFare: 150000,
+    minFreeDeliveryFare: 250000,
     paymentEnv: "test",
     vendorPlans: [],
   });
@@ -56,10 +59,10 @@ export default function AdminSettingsPage() {
       const data = await systemConfigApi.getPublicConfig();
       if (data) {
         setSysConfig({
-          siteName: data.siteName || "Dawang Stores",
+          siteName: data.siteName || "Globexmall",
           logoUrl: data.logoUrl || "",
           contactAddress: data.contactAddress || "",
-          location: data.location || "Lagos, Nigeria",
+          location: data.location || "Port Harcourt, Nigeria",
           businessHours: data.businessHours || "Mon - Sat: 9:00 AM - 8:00 PM",
           whatsappContact: data.whatsappContact || "",
           heroType: data.heroType || HeroType.IMAGE,
@@ -68,6 +71,8 @@ export default function AdminSettingsPage() {
           minFreeDeliveryFare: Number(data.minFreeDeliveryFare) || 0,
           paymentEnv: data.paymentEnv || "test",
           vendorPlans: data.vendorPlans || [],
+          termsAndConditions: data.termsAndConditions || DEFAULT_TERMS_HTML,
+          privacyPolicy: data.privacyPolicy || DEFAULT_PRIVACY_HTML,
         });
       }
     } catch (err) {
@@ -128,6 +133,8 @@ export default function AdminSettingsPage() {
         minFreeDeliveryFare: Number(sysConfig.minFreeDeliveryFare) || 0,
         paymentEnv: sysConfig.paymentEnv || "test",
         vendorPlans: sysConfig.vendorPlans,
+        termsAndConditions: sysConfig.termsAndConditions,
+        privacyPolicy: sysConfig.privacyPolicy,
       });
 
       setSysConfig({
@@ -331,6 +338,19 @@ export default function AdminSettingsPage() {
               }`}
             >
               <LuLayers className="w-4 h-4 text-[#C4956A]" /> Vendor Plans
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("legal")}
+              className={`flex items-center gap-3 px-4 py-3 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer text-left ${
+                activeTab === "legal"
+                  ? "bg-[#171514] text-white"
+                  : "bg-white text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6] border border-[#EAE8E4]"
+              }`}
+            >
+              <LuFileText className="w-4 h-4 text-[#C4956A]" /> Legal &amp;
+              Policies
             </button>
           </aside>
 
@@ -808,6 +828,84 @@ export default function AdminSettingsPage() {
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+              )}
+
+              {/* TAB 5: LEGAL & POLICIES */}
+              {activeTab === "legal" && (
+                <div className="flex flex-col gap-6">
+                  <div className="pb-3 border-b border-[#EAE8E4]">
+                    <h2 className="font-heading text-base font-bold uppercase tracking-wider text-[#151413]">
+                      Terms &amp; Privacy Policies
+                    </h2>
+                    <p className="text-[#76726E] text-xs mt-0.5">
+                      Format numbered clauses, headings, and lists published on{" "}
+                      <span className="font-mono">/terms</span> and{" "}
+                      <span className="font-mono">/privacy</span>.
+                    </p>
+                  </div>
+
+                  {/* Terms & Conditions Editor */}
+                  <div className="flex flex-col gap-2">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
+                        Terms &amp; Conditions
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            termsAndConditions: DEFAULT_TERMS_HTML,
+                          }))
+                        }
+                        className="text-[10px] font-bold uppercase tracking-wider text-[#C4956A] hover:underline cursor-pointer"
+                      >
+                        Load Default Template
+                      </button>
+                    </div>
+                    <RichTextEditor
+                      value={sysConfig.termsAndConditions || ""}
+                      onChange={(html) =>
+                        setSysConfig((prev) => ({
+                          ...prev,
+                          termsAndConditions: html,
+                        }))
+                      }
+                      placeholder="Write platform Terms & Conditions..."
+                    />
+                  </div>
+
+                  {/* Privacy Policy Editor */}
+                  <div className="flex flex-col gap-2 pt-2">
+                    <div className="flex items-center justify-between">
+                      <label className="font-bold uppercase tracking-wider text-[#76726E]">
+                        Privacy Policy
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSysConfig((prev) => ({
+                            ...prev,
+                            privacyPolicy: DEFAULT_PRIVACY_HTML,
+                          }))
+                        }
+                        className="text-[10px] font-bold uppercase tracking-wider text-[#C4956A] hover:underline cursor-pointer"
+                      >
+                        Load Default Template
+                      </button>
+                    </div>
+                    <RichTextEditor
+                      value={sysConfig.privacyPolicy || ""}
+                      onChange={(html) =>
+                        setSysConfig((prev) => ({
+                          ...prev,
+                          privacyPolicy: html,
+                        }))
+                      }
+                      placeholder="Write platform Privacy Policy..."
+                    />
                   </div>
                 </div>
               )}

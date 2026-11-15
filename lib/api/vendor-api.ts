@@ -69,6 +69,7 @@ export interface OnboardVendorPayload {
   bankCode: string;
   bankName: string;
   accountNumber: string;
+  termsAccepted: boolean;
 }
 
 export interface VendorDashboardStats {

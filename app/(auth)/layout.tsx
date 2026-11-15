@@ -10,11 +10,11 @@ export default function AuthLayout({
       <div className="mb-6">
         <Link href="/" className="flex flex-col items-center gap-0.5">
           <span className="font-heading text-2xl font-bold tracking-[0.2em] text-[#151413]">
-            DAWANG
+            GlobexMall
           </span>
-          <span className="text-[8px] font-bold tracking-[0.3em] uppercase text-[#C4956A]">
+          {/* <span className="text-[8px] font-bold tracking-[0.3em] uppercase text-[#C4956A]">
             STORES
-          </span>
+          </span> */}
         </Link>
       </div>
       <div className="w-full max-w-md">{children}</div>

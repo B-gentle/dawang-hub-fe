@@ -54,7 +54,7 @@ function LoginForm() {
             Welcome Back
           </h1>
           <p className="text-xs text-[#76726E] mt-1">
-            Sign in to access your Dawang Hub account
+            Sign in to access your GlobexMall account
           </p>
         </div>
 

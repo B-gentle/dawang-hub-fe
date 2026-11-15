@@ -60,7 +60,7 @@ function RegisterForm() {
       <div className="w-full max-w-md bg-[#FAF9F6] border border-[#EAE8E4] rounded-lg p-6 sm:p-8 shadow-xs">
         <div className="flex flex-col items-center text-center gap-2 mb-8">
           <span className="text-[10px] font-bold text-[#C4956A] uppercase tracking-[0.25em]">
-            Dawang Stores
+            GlobexMall
           </span>
           <h1 className="font-heading text-2xl font-bold uppercase tracking-tight text-[#151413]">
             Create An Account
