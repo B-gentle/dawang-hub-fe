@@ -1,7 +1,14 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const RESERVED_SUBDOMAINS = new Set(["www", "api", "admin", "mail", "app"]);
+const RESERVED_SUBDOMAINS = new Set([
+  "www",
+  "api",
+  "admin",
+  "mail",
+  "app",
+  "pms",
+]);
 
 // Shared routes that live outside app/[slug] and should resolve directly
 const SHARED_STORE_PREFIXES = [
