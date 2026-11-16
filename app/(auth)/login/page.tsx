@@ -31,6 +31,8 @@ function LoginForm() {
         router.push(redirectTo);
       } else if (response.user.role === "admin") {
         router.push("/admin");
+      } else if (response.user.role === "vendor") {
+        router.push("/vendor/dashboard");
       } else {
         router.push("/account");
       }

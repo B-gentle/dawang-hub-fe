@@ -22,6 +22,7 @@ function RegisterForm() {
     password: "",
   });
 
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -34,6 +35,13 @@ function RegisterForm() {
 
     if (formData.password.length < 6) {
       toast.error("Password must be at least 6 characters long");
+      return;
+    }
+
+    if (!termsAccepted) {
+      toast.error(
+        "Please accept the Terms & Conditions and Privacy Policy to register",
+      );
       return;
     }
 
@@ -148,7 +156,38 @@ function RegisterForm() {
             </div>
           </div>
 
-          <div className="flex items-center gap-2 text-[10px] text-[#76726E] pt-1">
+          <label className="flex items-start gap-2.5 p-3 rounded-md bg-white border border-[#EAE8E4] hover:border-[#C4956A] transition-colors cursor-pointer text-[11px] text-[#76726E]">
+            <input
+              type="checkbox"
+              required
+              checked={termsAccepted}
+              onChange={(e) => setTermsAccepted(e.target.checked)}
+              className="mt-0.5 w-3.5 h-3.5 accent-[#C4956A] rounded-xs cursor-pointer shrink-0"
+            />
+            <span className="leading-relaxed">
+              I agree to the{" "}
+              <Link
+                href="/terms"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-[#151413] underline hover:text-[#C4956A]"
+              >
+                Terms &amp; Conditions
+              </Link>{" "}
+              and{" "}
+              <Link
+                href="/privacy"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-bold text-[#151413] underline hover:text-[#C4956A]"
+              >
+                Privacy Policy
+              </Link>
+              . <strong className="text-rose-600">*</strong>
+            </span>
+          </label>
+
+          <div className="flex items-center gap-2 text-[10px] text-[#76726E]">
             <FiShield className="w-3.5 h-3.5 text-[#C4956A] shrink-0" />
             <span>
               Your personal data is protected under encryption guidelines.
@@ -157,7 +196,7 @@ function RegisterForm() {
 
           <button
             type="submit"
-            disabled={loading}
+            disabled={loading || !termsAccepted}
             className="mt-2 w-full py-3.5 bg-[#151413] text-white text-xs font-bold uppercase tracking-widest rounded-md hover:bg-[#2A2725] transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:bg-[#A39E98] disabled:cursor-not-allowed"
           >
             {loading ? "Creating Account..." : "Register Now"}{" "}
