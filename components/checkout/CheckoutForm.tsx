@@ -38,9 +38,10 @@ export interface CheckoutFormProps {
   isLoggedIn: boolean;
   user?: UserProfileData | null;
   onStateChange?: (state: string) => void;
+  availableStates?: Array<{ state: string; fee: number }>;
 }
 
-const NIGERIAN_STATES = [
+const DEFAULT_NIGERIAN_STATES = [
   "Abia",
   "Adamawa",
   "Akwa Ibom",
@@ -55,7 +56,7 @@ const NIGERIAN_STATES = [
   "Edo",
   "Ekiti",
   "Enugu",
-  "FCT",
+  "FCT - Abuja",
   "Gombe",
   "Imo",
   "Jigawa",
@@ -86,6 +87,7 @@ export default function CheckoutForm({
   isLoggedIn,
   user,
   onStateChange,
+  availableStates,
 }: CheckoutFormProps) {
   const [formData, setFormData] = useState<ShippingAddressData>({
     firstName: "",
@@ -98,9 +100,17 @@ export default function CheckoutForm({
     orderNotes: "",
   });
 
+  const stateOptions =
+    availableStates && availableStates.length > 0
+      ? availableStates
+      : DEFAULT_NIGERIAN_STATES.map((state) => ({ state, fee: 5000 }));
+
   useEffect(() => {
     if (user) {
-      const normalizedState = user.state === "Abuja" ? "FCT" : user.state || "";
+      const normalizedState =
+        user.state === "Abuja" || user.state === "FCT"
+          ? "FCT - Abuja"
+          : user.state || "";
       queueMicrotask(() => {
         setFormData((prev) => ({
           ...prev,
@@ -115,6 +125,21 @@ export default function CheckoutForm({
       });
     }
   }, [user]);
+
+  // If vendor restricts shipping to specific states and current formData.state isn't in that list, snap to the first supported state
+  useEffect(() => {
+    if (!availableStates || availableStates.length === 0) return;
+    const isCurrentSupported = availableStates.some(
+      (s) => s.state.toLowerCase() === formData.state.toLowerCase(),
+    );
+    if (!isCurrentSupported) {
+      const fallbackState = availableStates[0].state;
+      queueMicrotask(() => {
+        setFormData((prev) => ({ ...prev, state: fallbackState }));
+        onStateChange?.(fallbackState);
+      });
+    }
+  }, [availableStates, formData.state, onStateChange]);
 
   const handleChange = (
     e: React.ChangeEvent<
@@ -283,9 +308,12 @@ export default function CheckoutForm({
               onChange={handleChange}
               className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A]"
             >
-              {NIGERIAN_STATES.map((st) => (
-                <option key={st} value={st}>
-                  {st === "FCT" ? "Abuja (FCT)" : `${st} State`}
+              {stateOptions.map((item) => (
+                <option key={item.state} value={item.state}>
+                  {item.state === "FCT - Abuja" || item.state === "FCT"
+                    ? "Abuja (FCT)"
+                    : `${item.state} State`}{" "}
+                  (₦{Number(item.fee || 0).toLocaleString()})
                 </option>
               ))}
             </select>
@@ -316,7 +344,7 @@ export default function CheckoutForm({
           <FiCreditCard className="w-5 h-5 text-[#C4956A] shrink-0" />
           <div className="flex flex-col text-xs">
             <span className="font-bold text-[#151413]">
-              Paystack Online Gateway
+              Online Secure Gateway
             </span>
             <span className="text-[11px] text-[#76726E]">
               Pay securely via Debit Card, Bank Transfer, or USSD

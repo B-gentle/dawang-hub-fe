@@ -36,6 +36,16 @@ export const DEFAULT_PRIVACY_HTML = `
   <li><strong>Payment Metadata:</strong> Transaction references and payment status confirmations from Paystack and Monnify. We never store raw debit or credit card numbers on our servers.</li>
 </ol>
 
+<h2>Vendor KYC Identity Verification &amp; NDPA Data Protection</h2>
+<p>
+  In compliance with the <strong>Nigeria Data Protection Act (NDPA 2023)</strong>, Central Bank of Nigeria (CBN) anti-fraud directives, and Know-Your-Customer (KYC) obligations, vendors requesting wallet payouts undergo tiered identity verification:
+</p>
+<ul>
+  <li><strong>Tier 1 (Payouts up to ₦50,000):</strong> Verification of your 11-digit Bank Verification Number (BVN) against your registered settlement bank account.</li>
+  <li><strong>Tier 2 (Payouts above ₦50,000):</strong> Verification of your 11-digit National Identification Number (NIN) against your registered settlement account holder name.</li>
+  <li><strong>AES-256-GCM Encrypted Vault &amp; Access Auditing:</strong> Raw BVN and NIN identifiers are never stored in plain text or exposed in standard API responses. They are encrypted at rest using <strong>AES-256-GCM</strong> with a dedicated server-side key, masked to the last four digits in vendor and standard admin views, and may only be decrypted by authorized compliance administrators using a separate master vault key with immutable audit logging.</li>
+</ul>
+
 <h2>3. How We Use Your Information</h2>
 <ol>
   <li>To process customer orders, calculate state-specific delivery fees, and coordinate fulfillment.</li>

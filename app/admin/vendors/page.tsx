@@ -15,9 +15,16 @@ import {
   FiPackage,
   FiUsers,
   FiHardDrive,
+  FiShield,
+  FiLock,
+  FiEye,
 } from "react-icons/fi";
 import { toast } from "sonner";
-import { vendorApi, AdminVendorSummary } from "@/lib/api/vendor-api";
+import {
+  vendorApi,
+  AdminVendorSummary,
+  AdminRevealedKycResponse,
+} from "@/lib/api/vendor-api";
 import { formatBytes } from "@/lib/utils/format-bytes";
 
 const STATUS_TABS = ["ALL", "APPROVED", "PENDING", "SUSPENDED"] as const;
@@ -40,6 +47,13 @@ function AdminVendorsContent() {
   const [selectedVendor, setSelectedVendor] =
     useState<AdminVendorSummary | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+
+  // Admin Master-Key KYC Vault State
+  const [masterKeyInput, setMasterKeyInput] = useState("");
+  const [auditReasonInput, setAuditReasonInput] = useState("");
+  const [revealingKyc, setRevealingKyc] = useState(false);
+  const [revealedKyc, setRevealedKyc] =
+    useState<AdminRevealedKycResponse | null>(null);
 
   const sortBy: SortOption = sortOverride ?? urlSort;
 
@@ -73,6 +87,40 @@ function AdminVendorsContent() {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  const openVendorDrawer = (vendor: AdminVendorSummary) => {
+    setSelectedVendor(vendor);
+    setRevealedKyc(null);
+    setMasterKeyInput("");
+    setAuditReasonInput("");
+  };
+
+  const handleRevealKyc = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedVendor) return;
+    if (!masterKeyInput.trim()) {
+      toast.error("Enter the Admin KYC Master Key to decrypt identity records");
+      return;
+    }
+
+    try {
+      setRevealingKyc(true);
+      const res = await vendorApi.revealVendorKycAdmin(
+        selectedVendor.id,
+        masterKeyInput.trim(),
+        auditReasonInput.trim() || "Compliance & Settlement Audit",
+      );
+      setRevealedKyc(res);
+      setMasterKeyInput("");
+      toast.success("KYC records decrypted and logged to NDPA audit trail");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to decrypt KYC records",
+      );
+    } finally {
+      setRevealingKyc(false);
+    }
+  };
 
   const handleStatusChange = async (
     vendor: AdminVendorSummary,
@@ -184,9 +232,9 @@ function AdminVendorsContent() {
             Vendors ({vendors.length})
           </h1>
           <p className="text-sm text-[#76726E] mt-1">
-            Approve or suspend vendor storefronts, inspect escrow balances, and
-            monitor media storage ({formatBytes(totalVendorStorage)} across all
-            stores).
+            Approve or suspend vendor storefronts, inspect KYC & escrow
+            balances, and monitor media storage (
+            {formatBytes(totalVendorStorage)} across all stores).
           </p>
         </div>
 
@@ -276,11 +324,12 @@ function AdminVendorsContent() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-215">
+            <table className="w-full text-left border-collapse min-w-235">
               <thead>
                 <tr className="bg-[#FAF9F6] border-b border-[#EAE8E4] text-[10px] font-bold uppercase tracking-[0.15em] text-[#76726E]">
                   <th className="py-3.5 px-4 font-bold">STOREFRONT</th>
                   <th className="py-3.5 px-4 font-bold">OWNER</th>
+                  <th className="py-3.5 px-4 font-bold">KYC TIER</th>
                   <th className="py-3.5 px-4 font-bold">CATALOG / ORDERS</th>
                   <th className="py-3.5 px-4 font-bold">STORAGE</th>
                   <th className="py-3.5 px-4 font-bold">ESCROW / AVAILABLE</th>
@@ -318,6 +367,31 @@ function AdminVendorsContent() {
                         </span>
                         <span className="text-[10px] text-[#76726E]">
                           {vendor.owner?.email}
+                        </span>
+                      </div>
+                    </td>
+
+                    <td className="py-4 px-4">
+                      <div className="flex flex-wrap gap-1">
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            vendor.bvnVerified
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-stone-100 text-[#76726E]"
+                          }`}
+                        >
+                          BVN{" "}
+                          {vendor.bvnVerified ? `••••${vendor.bvnLast4}` : "—"}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                            vendor.ninVerified
+                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                              : "bg-stone-100 text-[#76726E]"
+                          }`}
+                        >
+                          NIN{" "}
+                          {vendor.ninVerified ? `••••${vendor.ninLast4}` : "—"}
                         </span>
                       </div>
                     </td>
@@ -370,7 +444,7 @@ function AdminVendorsContent() {
                     <td className="py-4 px-4 text-right">
                       <div className="inline-flex items-center gap-2">
                         <button
-                          onClick={() => setSelectedVendor(vendor)}
+                          onClick={() => openVendorDrawer(vendor)}
                           className="px-3 py-1.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[11px] font-bold uppercase tracking-wider text-[#151413] hover:bg-[#151413] hover:text-white transition-colors cursor-pointer"
                         >
                           Inspect
@@ -477,6 +551,106 @@ function AdminVendorsContent() {
                 <span className="text-[#76726E]">
                   {selectedVendor.bankName} • {selectedVendor.accountNumber}
                 </span>
+              </div>
+
+              {/* NDPA Encrypted KYC Vault (Master Key Gated) */}
+              <div className="bg-[#FAF9F6] p-4 rounded-md border border-[#EAE8E4] flex flex-col gap-3 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-[#151413] flex items-center gap-1.5">
+                    <FiShield className="w-3.5 h-3.5 text-[#C4956A]" /> NDPA KYC
+                    Identity Vault
+                  </span>
+                  <span className="text-[10px] font-mono text-[#76726E]">
+                    AES-256-GCM
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="p-2.5 bg-white rounded border border-[#EAE8E4]">
+                    <span className="text-[10px] font-bold uppercase text-[#76726E]">
+                      Tier 1 BVN
+                    </span>
+                    <p className="font-mono font-bold text-[#151413] mt-0.5">
+                      {revealedKyc?.bvn
+                        ? revealedKyc.bvn
+                        : selectedVendor.bvnVerified
+                          ? `•••••••${selectedVendor.bvnLast4}`
+                          : "Unverified"}
+                    </p>
+                  </div>
+
+                  <div className="p-2.5 bg-white rounded border border-[#EAE8E4]">
+                    <span className="text-[10px] font-bold uppercase text-[#76726E]">
+                      Tier 2 NIN
+                    </span>
+                    <p className="font-mono font-bold text-[#151413] mt-0.5">
+                      {revealedKyc?.nin
+                        ? revealedKyc.nin
+                        : selectedVendor.ninVerified
+                          ? `•••••••${selectedVendor.ninLast4}`
+                          : "Unverified"}
+                    </p>
+                  </div>
+                </div>
+
+                {(selectedVendor.bvnVerified || selectedVendor.ninVerified) &&
+                  !revealedKyc && (
+                    <form
+                      onSubmit={handleRevealKyc}
+                      className="flex flex-col gap-2 pt-2 border-t border-[#EAE8E4]"
+                    >
+                      <label className="text-[10px] font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
+                        <FiLock className="w-3 h-3 text-[#C4956A]" /> Admin KYC
+                        Master Key (Audit Logged)
+                      </label>
+                      <input
+                        type="password"
+                        placeholder="Enter ADMIN_KYC_MASTER_KEY"
+                        value={masterKeyInput}
+                        onChange={(e) => setMasterKeyInput(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE8E4] rounded text-xs font-mono focus:outline-hidden focus:border-[#C4956A]"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Audit reason (e.g. Compliance review)"
+                        value={auditReasonInput}
+                        onChange={(e) => setAuditReasonInput(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-[#EAE8E4] rounded text-xs focus:outline-hidden focus:border-[#C4956A]"
+                      />
+                      <button
+                        type="submit"
+                        disabled={revealingKyc || !masterKeyInput.trim()}
+                        className="w-full py-2 bg-[#151413] text-white text-[11px] font-bold uppercase tracking-wider rounded hover:bg-[#2A2725] transition-colors flex items-center justify-center gap-1.5 cursor-pointer disabled:bg-[#A39E98]"
+                      >
+                        <FiEye className="w-3.5 h-3.5 text-[#C4956A]" />
+                        {revealingKyc
+                          ? "Decrypting Vault..."
+                          : "Decrypt BVN / NIN"}
+                      </button>
+                    </form>
+                  )}
+
+                {revealedKyc?.auditTrail &&
+                  revealedKyc.auditTrail.length > 0 && (
+                    <div className="pt-2 border-t border-[#EAE8E4] flex flex-col gap-1.5">
+                      <span className="text-[10px] font-bold uppercase text-[#76726E]">
+                        Recent NDPA Vault Access Log
+                      </span>
+                      <div className="max-h-28 overflow-y-auto divide-y divide-[#EAE8E4] bg-white rounded border border-[#EAE8E4] px-2.5">
+                        {revealedKyc.auditTrail.map((log) => (
+                          <div key={log.id} className="py-1.5 text-[10px]">
+                            <p className="font-bold text-[#151413]">
+                              {log.adminEmail}
+                            </p>
+                            <p className="text-[#76726E]">
+                              {log.reason} •{" "}
+                              {new Date(log.createdAt).toLocaleString()}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
               </div>
 
               {/* Quick Navigation to Filtered Catalog & Orders */}

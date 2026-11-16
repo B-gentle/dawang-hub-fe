@@ -8,6 +8,53 @@ export interface StateShippingRate {
   fee: number;
 }
 
+export interface VendorShippingOptionsResponse {
+  isDefaultFlatRate: boolean;
+  defaultFlatRate: number;
+  states: Array<{
+    state: string;
+    fee: number;
+  }>;
+}
+
+export interface VendorKycStatus {
+  bvnVerified: boolean;
+  bvnLast4: string | null;
+  bvnVerifiedAt: string | null;
+  ninVerified: boolean;
+  ninLast4: string | null;
+  ninVerifiedAt: string | null;
+  ninThresholdAmount: number;
+  kycPolicyVersion: string;
+}
+
+export interface KycAuditRecord {
+  id: string;
+  vendorId: string;
+  adminUserId: string;
+  adminEmail: string;
+  action: string;
+  reason?: string | null;
+  ipAddress?: string | null;
+  createdAt: string;
+}
+
+export interface AdminRevealedKycResponse {
+  vendorId: string;
+  storeName: string;
+  accountName?: string;
+  bvnVerified: boolean;
+  bvn: string | null;
+  bvnVerifiedAt?: string | null;
+  ninVerified: boolean;
+  nin: string | null;
+  ninVerifiedAt?: string | null;
+  kycConsentAccepted: boolean;
+  kycConsentAcceptedAt?: string | null;
+  kycPolicyVersion: string;
+  auditTrail: KycAuditRecord[];
+}
+
 export interface VendorProfile {
   id: string;
   userId: string;
@@ -27,6 +74,15 @@ export interface VendorProfile {
   withdrawableBalance?: number;
   totalWithdrawn?: number;
   shippingRates?: StateShippingRate[];
+  bvnVerified?: boolean;
+  bvnLast4?: string | null;
+  bvnVerifiedAt?: string | null;
+  ninVerified?: boolean;
+  ninLast4?: string | null;
+  ninVerifiedAt?: string | null;
+  kycConsentAccepted?: boolean;
+  kycConsentAcceptedAt?: string | null;
+  kycPolicyVersion?: string;
   themeConfig?: {
     primaryColor?: string;
     accentColor?: string;
@@ -107,6 +163,7 @@ export interface VendorWalletResponse {
   pendingBalance: number;
   withdrawableBalance: number;
   totalWithdrawn: number;
+  kycStatus?: VendorKycStatus;
   bankAccount: {
     bankCode?: string;
     bankName?: string;
@@ -217,6 +274,18 @@ export const vendorApi = {
 
   getMyWallet: () => fetcher<VendorWalletResponse>("/vendors/me/wallet"),
 
+  verifyMyBvn: (bvn: string, consentAccepted: boolean) =>
+    fetcher<VendorKycStatus>("/vendors/me/kyc/bvn", {
+      method: "POST",
+      body: JSON.stringify({ bvn, consentAccepted }),
+    }),
+
+  verifyMyNin: (nin: string, consentAccepted: boolean) =>
+    fetcher<VendorKycStatus>("/vendors/me/kyc/nin", {
+      method: "POST",
+      body: JSON.stringify({ nin, consentAccepted }),
+    }),
+
   requestWithdrawal: (amount: number) =>
     fetcher<VendorWithdrawalRecord>("/vendors/me/withdraw", {
       method: "POST",
@@ -229,8 +298,13 @@ export const vendorApi = {
       body: JSON.stringify({ shippingRates }),
     }),
 
+  getShippingOptions: (vendorId: string) =>
+    fetcher<VendorShippingOptionsResponse>(
+      `/vendors/${vendorId}/shipping-options`,
+    ),
+
   getShippingFeeForState: (vendorId: string, state: string) =>
-    fetcher<{ supported: boolean; fee: number }>(
+    fetcher<{ supported: boolean; fee: number; isDefaultFlatRate?: boolean }>(
       `/vendors/${vendorId}/shipping-fee?state=${encodeURIComponent(state)}`,
     ),
 
@@ -242,6 +316,19 @@ export const vendorApi = {
 
   getPlatformStorageStatsAdmin: (): Promise<PlatformStorageStats> =>
     fetcher<PlatformStorageStats>("/vendors/admin/storage"),
+
+  revealVendorKycAdmin: (
+    vendorId: string,
+    masterKey: string,
+    reason: string,
+  ): Promise<AdminRevealedKycResponse> =>
+    fetcher<AdminRevealedKycResponse>(`/vendors/admin/${vendorId}/kyc/reveal`, {
+      method: "POST",
+      headers: {
+        "x-kyc-master-key": masterKey,
+      },
+      body: JSON.stringify({ reason }),
+    }),
 
   updateVendorStatusAdmin: (
     vendorId: string,

@@ -14,6 +14,7 @@ import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
 import { AddressPayload } from "@/lib/api/users-api";
 import { vendorApi } from "@/lib/api/vendor-api";
+import { systemConfigApi } from "@/lib/api/system-config-api";
 
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
@@ -25,6 +26,9 @@ export default function CheckoutPage() {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
 
   const [vendorId, setVendorId] = useState<string | undefined>(undefined);
+  const [availableStates, setAvailableStates] = useState<
+    Array<{ state: string; fee: number }>
+  >([]);
   const [selectedState, setSelectedState] = useState<string>("Rivers");
   const [shippingFee, setShippingFee] = useState<number>(5000);
   const [deliverySupported, setDeliverySupported] = useState<boolean>(true);
@@ -76,6 +80,34 @@ export default function CheckoutPage() {
     };
   }, [cart]);
 
+  // Load supported states & fees for the active vendor (or global flat rate fallback)
+  useEffect(() => {
+    let active = true;
+
+    const loadShippingOptions = async () => {
+      try {
+        if (vendorId) {
+          const opts = await vendorApi.getShippingOptions(vendorId);
+          if (!active) return;
+          setAvailableStates(opts.states || []);
+        } else {
+          const cfg = await systemConfigApi.getPublicConfig().catch(() => null);
+          if (!active) return;
+          const flat = Number(cfg?.defaultFlatShippingFee ?? 5000);
+          setShippingFee(subtotal >= 150000 || subtotal === 0 ? 0 : flat);
+          setAvailableStates([]);
+        }
+      } catch {
+        if (active) setAvailableStates([]);
+      }
+    };
+
+    loadShippingOptions();
+    return () => {
+      active = false;
+    };
+  }, [vendorId, subtotal]);
+
   // Fetch user profile & default address
   useEffect(() => {
     let active = true;
@@ -109,7 +141,11 @@ export default function CheckoutPage() {
         }
 
         if (user) {
-          const resolvedState = defaultAddr?.state || user.state || "Rivers";
+          const rawState = defaultAddr?.state || user.state || "Rivers";
+          const resolvedState =
+            rawState === "Abuja" || rawState === "FCT"
+              ? "FCT - Abuja"
+              : rawState;
           setSelectedState(resolvedState);
           setUserProfile({
             ...user,
@@ -143,7 +179,6 @@ export default function CheckoutPage() {
       if (!vendorId) {
         if (active) {
           setDeliverySupported(true);
-          setShippingFee(subtotal >= 150000 || subtotal === 0 ? 0 : 5000);
         }
         return;
       }
@@ -170,7 +205,7 @@ export default function CheckoutPage() {
     return () => {
       active = false;
     };
-  }, [vendorId, selectedState, subtotal]);
+  }, [vendorId, selectedState]);
 
   const handleCheckoutSubmit = async (shippingData: ShippingAddressData) => {
     if (cart.length === 0) {
@@ -218,12 +253,12 @@ export default function CheckoutPage() {
         throw new Error("Failed to generate order reference.");
       }
 
-      toast.info("Connecting to Paystack...");
+      toast.info("Connecting to payment gateway...");
       const paymentData = await apiClient.initializePayment(order.id);
 
       if (paymentData?.authorization_url) {
         await clearCart();
-        toast.success("Redirecting to Paystack secure checkout...");
+        toast.success("Redirecting to secure checkout...");
         window.location.href = paymentData.authorization_url;
       } else {
         throw new Error("Could not initialize payment gateway.");
@@ -305,6 +340,7 @@ export default function CheckoutPage() {
               isProcessing={isProcessing || checkingShipping}
               isLoggedIn={isLoggedIn}
               user={userProfile}
+              availableStates={availableStates}
               onStateChange={(st: string) => setSelectedState(st)}
             />
           </div>

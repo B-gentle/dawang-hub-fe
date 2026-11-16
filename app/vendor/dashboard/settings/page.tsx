@@ -1070,12 +1070,23 @@ export default function VendorStorefrontSettingsPage() {
                       36-State Delivery Coverage & Fees
                     </h2>
                     <p className="text-[#76726E] text-xs mt-0.5">
-                      Select the Nigerian states you deliver to and set your
-                      delivery fee (₦) for each state. Customers in unselected
-                      states will be informed that your store does not deliver
-                      there yet.
+                      When no states are enabled below, your storefront
+                      automatically ships nationwide across all 36 states + FCT
+                      at the platform default flat rate. As soon as you enable
+                      one or more states, checkout will only allow customers in
+                      your selected states and apply your custom fees.
                     </p>
                   </div>
+
+                  {enabledStatesCount === 0 && (
+                    <div className="p-3.5 rounded-lg bg-amber-50 border border-amber-200 text-xs text-amber-900">
+                      <strong>Nationwide Default Flat-Rate Active:</strong> You
+                      have not enabled custom states yet, so customers can order
+                      from any Nigerian state at the platform default flat-rate
+                      delivery fee. Enable specific states below to restrict
+                      coverage or set custom per-state fees.
+                    </div>
+                  )}
 
                   {/* Bulk Fee Helper + Free Shipping Banner Threshold */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-[#FAF9F6] p-4 rounded-lg border border-[#EAE8E4]">
