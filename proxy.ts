@@ -16,6 +16,7 @@ const SHARED_STORE_PREFIXES = [
   "/product",
   "/cart",
   "/checkout",
+  "/checkout/verify",
   "/wishlist",
   "/account",
   "/help",
