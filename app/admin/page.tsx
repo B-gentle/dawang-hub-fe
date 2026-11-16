@@ -11,10 +11,13 @@ import {
   LuUsers,
   LuDollarSign,
   LuRefreshCw,
+  LuHardDrive,
 } from "react-icons/lu";
 import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
 import { DashboardAnalyticsResponse, DashboardKPIs } from "@/lib/api/admin-api";
+import { vendorApi, PlatformStorageStats } from "@/lib/api/vendor-api";
+import { formatBytes } from "@/lib/utils/format-bytes";
 import { getTimeGreeting } from "@/lib/utils/date";
 import RevenueOverviewChart from "@/components/admin/RevenueOverviewChart";
 import TopProductsCard from "@/components/admin/TopProductsCard";
@@ -30,6 +33,9 @@ export default function AdminDashboardPage() {
   const [analyticsData, setAnalyticsData] =
     useState<DashboardAnalyticsResponse | null>(null);
   const [greeting, setGreeting] = useState<string>("Good day");
+  const [storageStats, setStorageStats] = useState<PlatformStorageStats | null>(
+    null,
+  );
 
   useEffect(() => {
     let active = true;
@@ -42,9 +48,10 @@ export default function AdminDashboardPage() {
       }
 
       try {
-        const [meRes, analyticsRes] = await Promise.allSettled([
+        const [meRes, analyticsRes, storageRes] = await Promise.allSettled([
           apiClient.getMe(),
           apiClient.getDashboardAnalytics(),
+          vendorApi.getPlatformStorageStatsAdmin(),
         ]);
 
         if (!active) return;
@@ -55,6 +62,10 @@ export default function AdminDashboardPage() {
 
         if (analyticsRes.status === "fulfilled" && analyticsRes.value) {
           setAnalyticsData(analyticsRes.value);
+        }
+
+        if (storageRes.status === "fulfilled" && storageRes.value) {
+          setStorageStats(storageRes.value);
         }
       } catch (err) {
         console.error("Failed to load admin dashboard analytics:", err);
@@ -203,6 +214,31 @@ export default function AdminDashboardPage() {
             </p>
           </div>
         </div>
+
+        {/* 5. Platform Storage */}
+        <Link
+          href="/admin/vendors?sort=storage_desc"
+          className="md:col-span-4 bg-white p-6 rounded-lg border border-[#EAE8E4] hover:border-[#C4956A] transition-colors flex flex-col justify-between h-36 shadow-xs"
+        >
+          <div className="flex items-center justify-between">
+            <div className="p-2 bg-[#FAF5EF] text-[#C4956A] rounded-md">
+              <LuHardDrive className="w-5 h-5" />
+            </div>
+            <span className="text-[11px] font-semibold text-[#76726E]">
+              {storageStats?.accountLimitBytes
+                ? `of ${formatBytes(storageStats.accountLimitBytes)}`
+                : "Cloudinary"}
+            </span>
+          </div>
+          <div>
+            <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#76726E]">
+              PLATFORM STORAGE
+            </span>
+            <p className="font-heading text-2xl font-bold text-[#1A1A1A]">
+              {formatBytes(storageStats?.totalPlatformStorageBytes)}
+            </p>
+          </div>
+        </Link>
       </div>
 
       {/* Revenue Overview Section */}

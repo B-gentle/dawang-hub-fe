@@ -145,12 +145,28 @@ export interface AdminVendorSummary extends VendorProfile {
   accountName?: string;
   productCount?: number;
   orderCount?: number;
+  storageUsedBytes?: number;
   owner?: {
     id: string;
     firstName?: string;
     lastName?: string;
     email?: string;
   };
+}
+
+export interface PlatformStorageStats {
+  totalVendorStorageBytes: number;
+  totalPlatformStorageBytes: number;
+  accountLimitBytes: number;
+  topHeavyVendors: Array<{
+    id: string;
+    storeName: string;
+    slug: string;
+    logoUrl: string | null;
+    status: VendorStatus;
+    ownerEmail: string | null;
+    storageUsedBytes: number;
+  }>;
 }
 
 export const vendorApi = {
@@ -223,6 +239,9 @@ export const vendorApi = {
 
   getAllVendorsAdmin: (): Promise<AdminVendorSummary[]> =>
     fetcher<AdminVendorSummary[]>("/vendors/admin/all"),
+
+  getPlatformStorageStatsAdmin: (): Promise<PlatformStorageStats> =>
+    fetcher<PlatformStorageStats>("/vendors/admin/storage"),
 
   updateVendorStatusAdmin: (
     vendorId: string,

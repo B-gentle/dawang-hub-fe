@@ -169,7 +169,7 @@ export default function AdminHelpCenterPage() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-[600px]">
+            <table className="w-full text-left border-collapse min-w-150">
               <thead>
                 <tr className="bg-[#FAF9F6] border-b border-[#EAE8E4] text-[10px] font-bold uppercase tracking-wider text-[#76726E]">
                   <th className="py-3 px-4">Article Title</th>

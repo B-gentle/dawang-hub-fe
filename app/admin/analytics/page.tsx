@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import {
   LuTrendingUp,
   LuShoppingBag,
@@ -8,6 +9,8 @@ import {
   LuRefreshCw,
   LuCalendar,
   LuImage,
+  LuHardDrive,
+  LuArrowUpRight,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -15,6 +18,8 @@ import {
   RevenueOverviewResponse,
   TopProductItem,
 } from "@/lib/api/analytics-api";
+import { vendorApi, PlatformStorageStats } from "@/lib/api/vendor-api";
+import { formatBytes } from "@/lib/utils/format-bytes";
 
 export default function AdminAnalyticsPage() {
   const [period, setPeriod] = useState<"weekly" | "monthly" | "yearly">(
@@ -22,22 +27,26 @@ export default function AdminAnalyticsPage() {
   );
   const [loading, setLoading] = useState(true);
 
-  // States adhering strictly to current backend types
   const [revenueStats, setRevenueStats] =
     useState<RevenueOverviewResponse | null>(null);
   const [topProducts, setTopProducts] = useState<TopProductItem[]>([]);
+  const [storageStats, setStorageStats] = useState<PlatformStorageStats | null>(
+    null,
+  );
 
   const loadAnalyticsData = async () => {
     try {
       setLoading(true);
 
-      const [revenueData, productsData] = await Promise.all([
+      const [revenueData, productsData, storageData] = await Promise.all([
         apiClient.getRevenueOverview(period).catch(() => null),
         apiClient.getTopProducts(10).catch(() => []),
+        vendorApi.getPlatformStorageStatsAdmin().catch(() => null),
       ]);
 
       setRevenueStats(revenueData);
       setTopProducts(Array.isArray(productsData) ? productsData : []);
+      setStorageStats(storageData);
     } catch (err) {
       console.error("Failed to fetch studio analytics:", err);
       toast.error("Failed to load store analytics data");
@@ -61,10 +70,12 @@ export default function AdminAnalyticsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [period]);
 
-  // Calculate gross total from data points
   const totalPeriodRevenue =
     revenueStats?.data?.reduce((acc, curr) => acc + (curr.revenue || 0), 0) ||
     0;
+
+  const heavyVendors = storageStats?.topHeavyVendors || [];
+  const totalVendorBytes = storageStats?.totalVendorStorageBytes || 0;
 
   return (
     <div className="flex flex-col gap-8 font-sans pb-12 text-[#151413]">
@@ -72,13 +83,14 @@ export default function AdminAnalyticsPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <span className="text-xs font-bold tracking-[0.15em] uppercase text-[#C4956A]">
-            REPORTS & INSIGHTS
+            REPORTS &amp; INSIGHTS
           </span>
           <h1 className="font-heading text-3xl font-bold text-[#151413] mt-1">
-            Analytics & Performance
+            Analytics &amp; Performance
           </h1>
           <p className="text-sm text-[#76726E] mt-1">
-            Deep dive into revenue trends and top performing product sales.
+            Deep dive into revenue trends, platform storage consumption, and top
+            performing product sales.
           </p>
         </div>
 
@@ -111,7 +123,7 @@ export default function AdminAnalyticsPage() {
       ) : (
         <>
           {/* Summary Metric Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Period Revenue */}
             <div className="bg-white p-6 rounded-lg border border-[#EAE8E4] shadow-xs flex flex-col justify-between gap-4">
               <div className="flex justify-between items-start">
@@ -178,6 +190,108 @@ export default function AdminAnalyticsPage() {
                 </p>
               </div>
             </div>
+
+            {/* Overall Platform Storage */}
+            <Link
+              href="/admin/vendors?sort=storage_desc"
+              className="bg-white p-6 rounded-lg border border-[#EAE8E4] hover:border-[#C4956A] transition-colors shadow-xs flex flex-col justify-between gap-4"
+            >
+              <div className="flex justify-between items-start">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#76726E]">
+                  Platform Media Storage
+                </span>
+                <div className="p-2 bg-[#FAF5EF] text-[#C4956A] rounded-md">
+                  <LuHardDrive className="w-4 h-4" />
+                </div>
+              </div>
+              <div>
+                <h3 className="text-2xl font-bold font-heading text-[#151413]">
+                  {formatBytes(storageStats?.totalPlatformStorageBytes)}
+                </h3>
+                <p className="text-[11px] text-[#76726E] mt-1">
+                  {formatBytes(totalVendorBytes)} across vendor stores
+                </p>
+              </div>
+            </Link>
+          </div>
+
+          {/* Top 5 Heavy Storage Users */}
+          <div className="bg-white p-6 rounded-lg border border-[#EAE8E4] shadow-xs flex flex-col gap-4">
+            <div className="pb-3 border-b border-[#EAE8E4] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413] flex items-center gap-2">
+                  <LuHardDrive className="w-4 h-4 text-[#C4956A]" /> Top 5 Heavy
+                  Storage Users
+                </h3>
+                <p className="text-xs text-[#76726E] mt-0.5">
+                  Vendors consuming the most media storage. Click any vendor to
+                  inspect all stores sorted by highest storage.
+                </p>
+              </div>
+
+              <Link
+                href="/admin/vendors?sort=storage_desc"
+                className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#C4956A] hover:underline self-start sm:self-auto"
+              >
+                View All by Storage <LuArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {heavyVendors.length === 0 ? (
+              <div className="py-10 text-center text-xs text-[#76726E] bg-[#FAF9F6] rounded-md">
+                No vendor storage usage recorded yet.
+              </div>
+            ) : (
+              <div className="divide-y divide-[#EAE8E4]">
+                {heavyVendors.map((vendor, index) => {
+                  const sharePercent =
+                    totalVendorBytes > 0
+                      ? Math.min(
+                          100,
+                          Math.round(
+                            (vendor.storageUsedBytes / totalVendorBytes) * 100,
+                          ),
+                        )
+                      : 0;
+
+                  return (
+                    <Link
+                      key={vendor.id}
+                      href="/admin/vendors?sort=storage_desc"
+                      className="py-3.5 px-3 -mx-3 rounded-md hover:bg-[#FAF9F6] transition-colors flex flex-col sm:flex-row sm:items-center justify-between gap-3 group"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <span className="w-6 h-6 rounded-full bg-[#FAF5EF] text-[#C4956A] font-bold text-xs flex items-center justify-center shrink-0">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[#151413] group-hover:text-[#C4956A] transition-colors truncate">
+                            {vendor.storeName}
+                          </p>
+                          <p className="text-[11px] text-[#76726E] truncate">
+                            {vendor.slug}
+                            {vendor.ownerEmail ? ` • ${vendor.ownerEmail}` : ""}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-4 sm:w-64 shrink-0">
+                        <div className="flex-1 h-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-[#C4956A] rounded-full"
+                            style={{ width: `${Math.max(sharePercent, 4)}%` }}
+                          />
+                        </div>
+                        <span className="font-mono text-xs font-bold text-[#151413] w-20 text-right">
+                          {formatBytes(vendor.storageUsedBytes)}
+                        </span>
+                        <LuArrowUpRight className="w-4 h-4 text-[#A39E98] group-hover:text-[#151413] shrink-0" />
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Top Products Performance Table */}
