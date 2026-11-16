@@ -11,12 +11,15 @@ import {
   LuImage,
   LuHardDrive,
   LuArrowUpRight,
+  LuStore,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
 import {
+  analyticsApi,
   RevenueOverviewResponse,
   TopProductItem,
+  TopVendorItem,
 } from "@/lib/api/analytics-api";
 import { vendorApi, PlatformStorageStats } from "@/lib/api/vendor-api";
 import { formatBytes } from "@/lib/utils/format-bytes";
@@ -30,6 +33,7 @@ export default function AdminAnalyticsPage() {
   const [revenueStats, setRevenueStats] =
     useState<RevenueOverviewResponse | null>(null);
   const [topProducts, setTopProducts] = useState<TopProductItem[]>([]);
+  const [topVendors, setTopVendors] = useState<TopVendorItem[]>([]);
   const [storageStats, setStorageStats] = useState<PlatformStorageStats | null>(
     null,
   );
@@ -38,14 +42,17 @@ export default function AdminAnalyticsPage() {
     try {
       setLoading(true);
 
-      const [revenueData, productsData, storageData] = await Promise.all([
-        apiClient.getRevenueOverview(period).catch(() => null),
-        apiClient.getTopProducts(10).catch(() => []),
-        vendorApi.getPlatformStorageStatsAdmin().catch(() => null),
-      ]);
+      const [revenueData, productsData, vendorsData, storageData] =
+        await Promise.all([
+          apiClient.getRevenueOverview(period).catch(() => null),
+          apiClient.getTopProducts(10).catch(() => []),
+          analyticsApi.getTopVendors(period, 5).catch(() => []),
+          vendorApi.getPlatformStorageStatsAdmin().catch(() => null),
+        ]);
 
       setRevenueStats(revenueData);
       setTopProducts(Array.isArray(productsData) ? productsData : []);
+      setTopVendors(Array.isArray(vendorsData) ? vendorsData : []);
       setStorageStats(storageData);
     } catch (err) {
       console.error("Failed to fetch studio analytics:", err);
@@ -89,8 +96,8 @@ export default function AdminAnalyticsPage() {
             Analytics &amp; Performance
           </h1>
           <p className="text-sm text-[#76726E] mt-1">
-            Deep dive into revenue trends, platform storage consumption, and top
-            performing product sales.
+            Deep dive into revenue trends, top performing vendors, platform
+            storage, and catalog sales.
           </p>
         </div>
 
@@ -213,6 +220,92 @@ export default function AdminAnalyticsPage() {
                 </p>
               </div>
             </Link>
+          </div>
+
+          {/* Top Performing Vendors Table */}
+          <div className="bg-white p-6 rounded-lg border border-[#EAE8E4] shadow-xs flex flex-col gap-4">
+            <div className="pb-3 border-b border-[#EAE8E4] flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div>
+                <h3 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413] flex items-center gap-2">
+                  <LuStore className="w-4 h-4 text-[#C4956A]" /> Top Performing
+                  Vendors ({period})
+                </h3>
+                <p className="text-xs text-[#76726E] mt-0.5">
+                  Storefronts ranked by gross paid order volume for the selected
+                  period
+                </p>
+              </div>
+
+              <Link
+                href="/admin/vendors"
+                className="inline-flex items-center gap-1 text-[11px] font-bold uppercase tracking-wider text-[#C4956A] hover:underline self-start sm:self-auto"
+              >
+                All Vendors <LuArrowUpRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+
+            {topVendors.length === 0 ? (
+              <div className="py-10 text-center text-xs text-[#76726E] bg-[#FAF9F6] rounded-md">
+                No paid vendor orders recorded for this {period} period.
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left border-collapse min-w-170">
+                  <thead>
+                    <tr className="bg-[#FAF9F6] border-b border-[#EAE8E4] text-[10px] font-bold uppercase tracking-wider text-[#76726E]">
+                      <th className="py-2.5 px-4">RANK / VENDOR</th>
+                      <th className="py-2.5 px-4">ORDERS</th>
+                      <th className="py-2.5 px-4">VENDOR PAYOUT</th>
+                      <th className="py-2.5 px-4">PLATFORM FEE</th>
+                      <th className="py-2.5 px-4 text-right">GROSS SALES</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[#EAE8E4] text-xs">
+                    {topVendors.map((vendor, index) => (
+                      <tr
+                        key={vendor.id}
+                        className="hover:bg-[#FAF9F6] transition-colors"
+                      >
+                        <td className="py-3 px-4">
+                          <Link
+                            href={`/admin/vendors?vendorId=${vendor.id}`}
+                            className="inline-flex items-center gap-3 group"
+                          >
+                            <span className="w-6 h-6 rounded-full bg-[#FAF5EF] text-[#C4956A] font-bold text-xs flex items-center justify-center shrink-0">
+                              {index + 1}
+                            </span>
+                            <div>
+                              <p className="font-bold text-[#151413] group-hover:text-[#C4956A] transition-colors">
+                                {vendor.storeName}
+                              </p>
+                              <p className="text-[10px] font-mono text-[#76726E]">
+                                {vendor.slug}
+                              </p>
+                            </div>
+                          </Link>
+                        </td>
+                        <td className="py-3 px-4 font-semibold text-[#151413]">
+                          {vendor.orderCount}{" "}
+                          {vendor.orderCount === 1 ? "Order" : "Orders"}
+                        </td>
+                        <td className="py-3 px-4 text-[#76726E] font-medium">
+                          ₦{Number(vendor.vendorEarnings || 0).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 text-emerald-700 font-semibold">
+                          ₦
+                          {Number(
+                            vendor.platformFeeEarned || 0,
+                          ).toLocaleString()}
+                        </td>
+                        <td className="py-3 px-4 text-right font-bold text-[#151413]">
+                          ₦{Number(vendor.grossSales || 0).toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
 
           {/* Top 5 Heavy Storage Users */}
