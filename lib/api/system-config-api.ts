@@ -44,6 +44,7 @@ export interface SystemConfig {
   heroImages: string[];
   heroVideoId: string;
   minFreeDeliveryFare: number;
+  defaultFlatShippingFee?: number;
   paymentEnv?: string;
   vendorPlans?: VendorPlanConfig[];
   termsAndConditions?: string;

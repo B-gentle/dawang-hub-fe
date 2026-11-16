@@ -49,6 +49,7 @@ export default function AdminSettingsPage() {
     heroImages: [],
     heroVideoId: "",
     minFreeDeliveryFare: 250000,
+    defaultFlatShippingFee: 5000,
     paymentEnv: "test",
     vendorPlans: [],
   });
@@ -69,6 +70,7 @@ export default function AdminSettingsPage() {
           heroImages: data.heroImages || [],
           heroVideoId: data.heroVideoId || "",
           minFreeDeliveryFare: Number(data.minFreeDeliveryFare) || 0,
+          defaultFlatShippingFee: Number(data.defaultFlatShippingFee) || 5000,
           paymentEnv: data.paymentEnv || "test",
           vendorPlans: data.vendorPlans || [],
           termsAndConditions: data.termsAndConditions || DEFAULT_TERMS_HTML,
@@ -131,6 +133,8 @@ export default function AdminSettingsPage() {
         heroImages: cleanedHeroImages,
         heroVideoId: sysConfig.heroVideoId || "",
         minFreeDeliveryFare: Number(sysConfig.minFreeDeliveryFare) || 0,
+        defaultFlatShippingFee:
+          Number(sysConfig.defaultFlatShippingFee) || 5000,
         paymentEnv: sysConfig.paymentEnv || "test",
         vendorPlans: sysConfig.vendorPlans,
         termsAndConditions: sysConfig.termsAndConditions,
@@ -148,6 +152,7 @@ export default function AdminSettingsPage() {
         heroImages: Array.isArray(updated.heroImages) ? updated.heroImages : [],
         heroVideoId: updated.heroVideoId || "",
         minFreeDeliveryFare: Number(updated.minFreeDeliveryFare) || 0,
+        defaultFlatShippingFee: Number(updated.defaultFlatShippingFee) || 5000,
         paymentEnv: updated.paymentEnv || "test",
         vendorPlans: updated.vendorPlans || [],
       });
@@ -707,6 +712,29 @@ export default function AdminSettingsPage() {
                         <option value="live">Live Production Mode</option>
                       </select>
                     </div>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1">
+                      <LuTruck className="w-3.5 h-3.5 text-[#C4956A]" /> Default
+                      Vendor Flat-Rate Shipping (₦)
+                    </label>
+                    <input
+                      type="number"
+                      min="0"
+                      value={sysConfig.defaultFlatShippingFee ?? 5000}
+                      onChange={(e) =>
+                        setSysConfig((prev) => ({
+                          ...prev,
+                          defaultFlatShippingFee: Number(e.target.value),
+                        }))
+                      }
+                      className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-bold focus:outline-hidden focus:border-[#C4956A]"
+                    />
+                    <span className="text-[11px] text-[#76726E]">
+                      Applied across all 36 states + FCT when a vendor has not
+                      configured custom state shipping rates.
+                    </span>
                   </div>
                 </div>
               )}
