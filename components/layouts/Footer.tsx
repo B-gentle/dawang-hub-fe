@@ -3,7 +3,7 @@
 import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { FaInstagram } from "react-icons/fa";
+import { FaFacebookF, FaInstagram, FaTiktok } from "react-icons/fa";
 import { BsChat } from "react-icons/bs";
 import { systemConfigApi, SystemConfig } from "@/lib/api/system-config-api";
 import { NavCategoryItem } from "./SiteHeader";
@@ -40,6 +40,9 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
       | "location"
       | "businessHours"
       | "whatsappContact"
+      | "facebookUrl"
+      | "instagramUrl"
+      | "tiktokUrl"
       | "themeConfig"
     >
   >({
@@ -50,6 +53,9 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
     location: "Port Harcourt, Nigeria",
     businessHours: "Mon — Sat, 9am — 6pm",
     whatsappContact: "",
+    facebookUrl: "",
+    instagramUrl: "",
+    tiktokUrl: "",
   });
 
   useEffect(() => {
@@ -68,6 +74,9 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
             location: config.location || "Port Harcourt, Nigeria",
             businessHours: config.businessHours || "Mon — Sat, 9am — 6pm",
             whatsappContact: config.whatsappContact || "",
+            facebookUrl: config.facebookUrl || "",
+            instagramUrl: config.instagramUrl || "",
+            tiktokUrl: config.tiktokUrl || "",
             themeConfig: config.themeConfig,
           });
         }
@@ -90,6 +99,9 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
         location: initialConfig.location || "",
         businessHours: initialConfig.businessHours || "",
         whatsappContact: initialConfig.whatsappContact || "",
+        facebookUrl: initialConfig.facebookUrl || "",
+        instagramUrl: initialConfig.instagramUrl || "",
+        tiktokUrl: initialConfig.tiktokUrl || "",
         themeConfig: initialConfig.themeConfig,
       }
     : fetchedConfig;
@@ -100,9 +112,16 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
       ? categoryLinks.slice(0, 2)
       : DEFAULT_FOOTER_CATEGORIES;
 
-  const whatsappLink = sysConfig.whatsappContact
-    ? `https://wa.me/${sysConfig.whatsappContact.replace(/\D/g, "")}`
-    : "#contact-info";
+  const facebookUrl = sysConfig.facebookUrl?.trim() || "";
+  const instagramUrl = sysConfig.instagramUrl?.trim() || "";
+  const tiktokUrl = sysConfig.tiktokUrl?.trim() || "";
+  const whatsappDigits = sysConfig.whatsappContact
+    ? sysConfig.whatsappContact.replace(/\D/g, "")
+    : "";
+
+  const hasSocialLinks = Boolean(
+    facebookUrl || instagramUrl || tiktokUrl || whatsappDigits,
+  );
 
   const backgroundColor = sysConfig.themeConfig?.backgroundColor || "#FAF9F6";
 
@@ -134,26 +153,55 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
             {sysConfig.description ||
               "Modern fashion and beauty essentials for the woman becoming everything she imagined."}
           </p>
-          <div className="flex items-center gap-3 mt-2">
-            <Link
-              href="https://instagram.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="p-2.5 rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-foreground transition-all duration-200"
-              aria-label="Instagram"
-            >
-              <FaInstagram className="w-4 h-4" />
-            </Link>
-            <Link
-              href={whatsappLink}
-              target={sysConfig.whatsappContact ? "_blank" : "_self"}
-              rel="noopener noreferrer"
-              className="p-2.5 rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-foreground transition-all duration-200"
-              aria-label="Chat with Us"
-            >
-              <BsChat className="w-4 h-4" />
-            </Link>
-          </div>
+
+          {hasSocialLinks && (
+            <div className="flex items-center gap-3 mt-2">
+              {facebookUrl && (
+                <a
+                  href={facebookUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2.5 rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-foreground transition-all duration-200"
+                  aria-label="Facebook"
+                >
+                  <FaFacebookF className="w-4 h-4" />
+                </a>
+              )}
+              {instagramUrl && (
+                <a
+                  href={instagramUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2.5 rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-foreground transition-all duration-200"
+                  aria-label="Instagram"
+                >
+                  <FaInstagram className="w-4 h-4" />
+                </a>
+              )}
+              {tiktokUrl && (
+                <a
+                  href={tiktokUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2.5 rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-foreground transition-all duration-200"
+                  aria-label="TikTok"
+                >
+                  <FaTiktok className="w-4 h-4" />
+                </a>
+              )}
+              {whatsappDigits && (
+                <a
+                  href={`https://wa.me/${whatsappDigits}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="p-2.5 rounded-full border border-border bg-white text-muted-foreground hover:text-foreground hover:border-foreground transition-all duration-200"
+                  aria-label="Chat on WhatsApp"
+                >
+                  <BsChat className="w-4 h-4" />
+                </a>
+              )}
+            </div>
+          )}
         </div>
 
         {/* SHOP Links */}
@@ -226,7 +274,7 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
                 href="/terms"
                 className="hover:text-foreground transition-colors duration-200"
               >
-                Terms & Conditions
+                Terms &amp; Conditions
               </Link>
             </li>
           </ul>
@@ -249,7 +297,7 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
             {sysConfig.whatsappContact && (
               <li>
                 <a
-                  href={`https://wa.me/${sysConfig.whatsappContact.replace(/\D/g, "")}`}
+                  href={`https://wa.me/${whatsappDigits}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="hover:text-foreground transition-colors duration-200"

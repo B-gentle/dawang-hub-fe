@@ -37,6 +37,9 @@ export interface SystemConfig {
   location: string;
   businessHours: string;
   whatsappContact: string;
+  facebookUrl?: string | null;
+  instagramUrl?: string | null;
+  tiktokUrl?: string | null;
   heroType: HeroType;
   heroImages: string[];
   heroVideoId: string;

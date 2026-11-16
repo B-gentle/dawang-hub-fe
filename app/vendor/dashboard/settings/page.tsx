@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FaFacebookF, FaInstagram, FaTiktok } from "react-icons/fa";
 import {
   LuGlobe,
   LuTruck,
@@ -102,6 +103,9 @@ export default function VendorStorefrontSettingsPage() {
     location: "",
     businessHours: "Mon - Sat: 9:00 AM - 6:00 PM",
     whatsappContact: "",
+    facebookUrl: "",
+    instagramUrl: "",
+    tiktokUrl: "",
     heroType: HeroType.IMAGE,
     heroImages: [],
     heroVideoId: "",
@@ -176,6 +180,9 @@ export default function VendorStorefrontSettingsPage() {
         location: data.location || "",
         businessHours: data.businessHours || "Mon - Sat: 9:00 AM - 6:00 PM",
         whatsappContact: data.whatsappContact || myVendor.whatsappNumber || "",
+        facebookUrl: data.facebookUrl || "",
+        instagramUrl: data.instagramUrl || "",
+        tiktokUrl: data.tiktokUrl || "",
         heroType: data.heroType || HeroType.IMAGE,
         heroImages: Array.isArray(data.heroImages) ? data.heroImages : [],
         heroVideoId: data.heroVideoId || "",
@@ -248,6 +255,32 @@ export default function VendorStorefrontSettingsPage() {
 
   const handleSaveSettings = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    const normalizeSocialInput = (
+      raw: string | null | undefined,
+      allowedHosts: string[],
+      label: string,
+    ): string | null => {
+      const trimmed = (raw || "").trim();
+      if (!trimmed) return null;
+      const candidate = /^https?:\/\//i.test(trimmed)
+        ? trimmed
+        : `https://${trimmed}`;
+      try {
+        const parsed = new URL(candidate);
+        const host = parsed.hostname.toLowerCase();
+        const hasPath = parsed.pathname.replace(/\//g, "").length > 0;
+        if (!allowedHosts.includes(host) || !hasPath) {
+          throw new Error();
+        }
+        return parsed.toString();
+      } catch {
+        throw new Error(
+          `Enter a valid ${label} profile URL (e.g. https://${allowedHosts[1]}/yourstore)`,
+        );
+      }
+    };
+
     try {
       setSaving(true);
 
@@ -266,6 +299,28 @@ export default function VendorStorefrontSettingsPage() {
           slug: c.slug || c.id,
         }));
 
+      const facebookUrl = normalizeSocialInput(
+        sysConfig.facebookUrl,
+        [
+          "facebook.com",
+          "www.facebook.com",
+          "m.facebook.com",
+          "fb.com",
+          "www.fb.com",
+        ],
+        "Facebook",
+      );
+      const instagramUrl = normalizeSocialInput(
+        sysConfig.instagramUrl,
+        ["instagram.com", "www.instagram.com", "instagr.am", "www.instagr.am"],
+        "Instagram",
+      );
+      const tiktokUrl = normalizeSocialInput(
+        sysConfig.tiktokUrl,
+        ["tiktok.com", "www.tiktok.com", "vm.tiktok.com", "vt.tiktok.com"],
+        "TikTok",
+      );
+
       await Promise.all([
         systemConfigApi.updateMyVendorConfig({
           siteName: sysConfig.siteName,
@@ -275,6 +330,9 @@ export default function VendorStorefrontSettingsPage() {
           location: sysConfig.location,
           businessHours: sysConfig.businessHours,
           whatsappContact: sysConfig.whatsappContact,
+          facebookUrl,
+          instagramUrl,
+          tiktokUrl,
           heroType: sysConfig.heroType,
           heroImages: cleanedHeroImages,
           heroVideoId: sysConfig.heroVideoId || "",
@@ -670,6 +728,78 @@ export default function VendorStorefrontSettingsPage() {
                       }
                       className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md focus:outline-hidden focus:border-[#C4956A]"
                     />
+                  </div>
+
+                  {/* Social Media Handles */}
+                  <div className="pt-4 border-t border-[#EAE8E4] flex flex-col gap-3">
+                    <div>
+                      <h3 className="font-heading text-xs font-bold uppercase tracking-wider text-[#151413]">
+                        Social Media Links (Footer)
+                      </h3>
+                      <p className="text-[11px] text-[#76726E] mt-0.5">
+                        Only links you add here will appear in your storefront
+                        footer.
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1.5">
+                          <FaFacebookF className="w-3 h-3 text-[#C4956A]" />{" "}
+                          Facebook URL
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://facebook.com/yourstore"
+                          value={sysConfig.facebookUrl || ""}
+                          onChange={(e) =>
+                            setSysConfig((prev) => ({
+                              ...prev,
+                              facebookUrl: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-mono text-[11px] focus:outline-hidden focus:border-[#C4956A]"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1.5">
+                          <FaInstagram className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
+                          Instagram URL
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://instagram.com/yourstore"
+                          value={sysConfig.instagramUrl || ""}
+                          onChange={(e) =>
+                            setSysConfig((prev) => ({
+                              ...prev,
+                              instagramUrl: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-mono text-[11px] focus:outline-hidden focus:border-[#C4956A]"
+                        />
+                      </div>
+
+                      <div className="flex flex-col gap-1.5">
+                        <label className="font-bold uppercase tracking-wider text-[#76726E] flex items-center gap-1.5">
+                          <FaTiktok className="w-3 h-3 text-[#C4956A]" /> TikTok
+                          URL
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://tiktok.com/@yourstore"
+                          value={sysConfig.tiktokUrl || ""}
+                          onChange={(e) =>
+                            setSysConfig((prev) => ({
+                              ...prev,
+                              tiktokUrl: e.target.value,
+                            }))
+                          }
+                          className="w-full px-3.5 py-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md font-mono text-[11px] focus:outline-hidden focus:border-[#C4956A]"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}

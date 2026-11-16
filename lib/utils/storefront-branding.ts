@@ -114,6 +114,9 @@ export async function resolveSubdomainBranding(
     logoUrl: rawConfig.logoUrl || vendor.logoUrl || "",
     description: rawConfig.description || vendor.description || "",
     whatsappContact: rawConfig.whatsappContact || vendor.whatsappNumber || "",
+    facebookUrl: rawConfig.facebookUrl || "",
+    instagramUrl: rawConfig.instagramUrl || "",
+    tiktokUrl: rawConfig.tiktokUrl || "",
     minFreeDeliveryFare: Number(rawConfig.minFreeDeliveryFare) || 0,
     themeConfig: {
       primaryColor:
