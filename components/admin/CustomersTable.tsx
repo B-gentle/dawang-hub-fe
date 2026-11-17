@@ -9,6 +9,7 @@ import {
   LuShieldCheck,
   LuUserX,
   LuUserCheck,
+  LuEye,
 } from "react-icons/lu";
 import { UserAccount } from "@/lib/api/users-api";
 
@@ -18,8 +19,12 @@ interface CustomersTableProps {
   users: UserAccount[];
   onRetry: () => void;
   onResetFilters: () => void;
-  onRoleChange: (userId: string, currentRole: "admin" | "customer") => void;
+  onRoleChange: (
+    userId: string,
+    currentRole: "admin" | "customer" | "vendor",
+  ) => void;
   onStatusToggle: (userId: string, currentStatus: boolean) => void;
+  onSelectUser: (user: UserAccount) => void;
 }
 
 export default function CustomersTable({
@@ -30,6 +35,7 @@ export default function CustomersTable({
   onResetFilters,
   onRoleChange,
   onStatusToggle,
+  onSelectUser,
 }: CustomersTableProps) {
   return (
     <div className="bg-white rounded-lg border border-[#EAE8E4] overflow-hidden shadow-xs">
@@ -64,7 +70,7 @@ export default function CustomersTable({
         </div>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[700px]">
+          <table className="w-full text-left border-collapse min-w-190">
             <thead>
               <tr className="bg-[#FAF9F6] border-b border-[#EAE8E4] text-[10px] font-bold uppercase tracking-wider text-[#76726E]">
                 <th className="py-3 px-4">User</th>
@@ -79,13 +85,23 @@ export default function CustomersTable({
               {users.map((user) => (
                 <tr
                   key={user.id}
-                  className="hover:bg-[#FAF9F6] transition-colors"
+                  onClick={() => onSelectUser(user)}
+                  className="hover:bg-[#FAF9F6] transition-colors cursor-pointer"
                 >
                   {/* User Name */}
                   <td className="py-3.5 px-4 font-semibold text-[#1A1A1A]">
-                    {user.firstName || user.lastName
-                      ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
-                      : "Unnamed Customer"}
+                    <div className="flex flex-col">
+                      <span>
+                        {user.firstName || user.lastName
+                          ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
+                          : "Unnamed Customer"}
+                      </span>
+                      {user.phoneNumber && (
+                        <span className="text-[10px] font-normal text-[#76726E]">
+                          {user.phoneNumber}
+                        </span>
+                      )}
+                    </div>
                   </td>
 
                   {/* Email */}
@@ -135,10 +151,23 @@ export default function CustomersTable({
                   </td>
 
                   {/* Actions */}
-                  <td className="py-3.5 px-4 text-right">
+                  <td
+                    className="py-3.5 px-4 text-right"
+                    onClick={(e) => e.stopPropagation()}
+                  >
                     <div className="flex justify-end items-center gap-2">
+                      {/* View / Edit Drawer Button */}
+                      <button
+                        type="button"
+                        onClick={() => onSelectUser(user)}
+                        className="px-2.5 py-1 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[10px] font-bold uppercase tracking-wider text-[#1A1A1A] hover:border-[#C4956A] transition-colors cursor-pointer flex items-center gap-1"
+                      >
+                        <LuEye className="w-3 h-3 text-[#C4956A]" /> View / Edit
+                      </button>
+
                       {/* Role Change Toggle */}
                       <button
+                        type="button"
                         onClick={() => onRoleChange(user.id, user.role)}
                         className="px-2.5 py-1 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[10px] font-bold uppercase tracking-wider text-[#1A1A1A] hover:border-[#C4956A] transition-colors cursor-pointer flex items-center gap-1"
                       >
@@ -157,6 +186,7 @@ export default function CustomersTable({
 
                       {/* Status Toggle */}
                       <button
+                        type="button"
                         onClick={() => onStatusToggle(user.id, user.isActive)}
                         className={`px-2.5 py-1 border rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1 ${
                           user.isActive

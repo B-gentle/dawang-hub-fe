@@ -5,7 +5,8 @@ export interface UserAccount {
   email: string;
   firstName: string;
   lastName: string;
-  role: "admin" | "customer";
+  role: "admin" | "customer" | "vendor";
+  phoneNumber?: string;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
@@ -21,10 +22,23 @@ export interface AddressPayload {
   isDefault?: boolean;
 }
 
+export interface UserAccountDetails extends UserAccount {
+  addresses?: AddressPayload[];
+}
+
 export interface UpdateProfilePayload {
   firstName?: string;
   lastName?: string;
   phoneNumber?: string;
+}
+
+export interface AdminUpdateUserPayload {
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  phoneNumber?: string;
+  role?: "admin" | "customer" | "vendor";
+  isActive?: boolean;
 }
 
 export const usersApi = {
@@ -56,7 +70,10 @@ export const usersApi = {
   // --- Admin User Management Endpoints ---
   getAllUsers: () => fetcher<UserAccount[]>("/users/admin/all"),
 
-  updateUserRole: (id: string, role: "admin" | "customer") =>
+  getUserById: (userId: string) =>
+    fetcher<UserAccountDetails>(`/users/admin/${userId}`),
+
+  updateUserRole: (id: string, role: "admin" | "customer" | "vendor") =>
     fetcher<UserAccount>(`/users/admin/${id}/role`, {
       method: "PATCH",
       body: JSON.stringify({ role }),
@@ -66,5 +83,11 @@ export const usersApi = {
     fetcher<UserAccount>(`/users/admin/${id}/status`, {
       method: "PATCH",
       body: JSON.stringify({ isActive }),
+    }),
+
+  adminUpdateUser: (userId: string, payload: AdminUpdateUserPayload) =>
+    fetcher<UserAccount>(`/users/admin/${userId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
     }),
 };

@@ -8,6 +8,7 @@ import { UserAccount } from "@/lib/api/users-api";
 import { vendorApi, VendorProfile } from "@/lib/api/vendor-api";
 import { ordersApi, OrderResponse } from "@/lib/api/orders-api";
 import CustomersTable from "@/components/admin/CustomersTable";
+import UserDetailsDrawer from "@/components/admin/UserDetailsDrawer";
 
 export default function AdminCustomersPage() {
   const [users, setUsers] = useState<UserAccount[]>([]);
@@ -15,6 +16,7 @@ export default function AdminCustomersPage() {
   const [vendorOrders, setVendorOrders] = useState<OrderResponse[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedUser, setSelectedUser] = useState<UserAccount | null>(null);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -78,9 +80,14 @@ export default function AdminCustomersPage() {
 
   const handleRoleChange = async (
     userId: string,
-    currentRole: "admin" | "customer",
+    currentRole: "admin" | "customer" | "vendor",
   ) => {
-    const newRole = currentRole === "admin" ? "customer" : "admin";
+    const newRole =
+      currentRole === "admin"
+        ? "customer"
+        : currentRole === "customer"
+          ? "vendor"
+          : "admin";
     if (
       !confirm(
         `Are you sure you want to change this user's role from ${currentRole.toUpperCase()} to ${newRole.toUpperCase()}?`,
@@ -95,6 +102,11 @@ export default function AdminCustomersPage() {
           prev.map((u) =>
             u.id === userId ? { ...u, role: updated.role || newRole } : u,
           ),
+        );
+        setSelectedUser((prev) =>
+          prev && prev.id === userId
+            ? { ...prev, role: updated.role || newRole }
+            : prev,
         );
         return `Role changed to ${newRole}`;
       },
@@ -113,18 +125,15 @@ export default function AdminCustomersPage() {
     toast.promise(apiClient.toggleUserStatus(userId, newStatus), {
       loading: `${newStatus ? "Activating" : "Suspending"} account...`,
       success: (updated) => {
+        const nextStatus =
+          updated.isActive !== undefined ? updated.isActive : newStatus;
         setUsers((prev) =>
           prev.map((u) =>
-            u.id === userId
-              ? {
-                  ...u,
-                  isActive:
-                    updated.isActive !== undefined
-                      ? updated.isActive
-                      : newStatus,
-                }
-              : u,
+            u.id === userId ? { ...u, isActive: nextStatus } : u,
           ),
+        );
+        setSelectedUser((prev) =>
+          prev && prev.id === userId ? { ...prev, isActive: nextStatus } : prev,
         );
         return `Account ${newStatus ? "activated" : "suspended"} successfully`;
       },
@@ -181,7 +190,7 @@ export default function AdminCustomersPage() {
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="font-heading text-2xl font-bold text-[#1A1A1A] flex items-center gap-2">
-            Customers & Users ({filteredUsers.length})
+            Users ({filteredUsers.length})
           </h1>
           <p className="text-xs text-[#76726E]">
             Manage customer accounts, storefront buyers, roles, and access
@@ -271,6 +280,18 @@ export default function AdminCustomersPage() {
         onResetFilters={handleResetFilters}
         onRoleChange={handleRoleChange}
         onStatusToggle={handleStatusToggle}
+        onSelectUser={(user) => setSelectedUser(user)}
+      />
+
+      <UserDetailsDrawer
+        user={selectedUser}
+        onClose={() => setSelectedUser(null)}
+        onUserUpdated={(updated) => {
+          setUsers((prev) =>
+            prev.map((u) => (u.id === updated.id ? updated : u)),
+          );
+          setSelectedUser(updated);
+        }}
       />
     </div>
   );
