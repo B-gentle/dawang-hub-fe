@@ -6,6 +6,8 @@ import { LuX, LuUpload, LuLoader } from "react-icons/lu";
 import { Product, CreateProductInput } from "@/types/product";
 import { Category } from "@/types/category";
 
+export const MAX_PRODUCT_IMAGES = 4;
+
 interface ProductFormModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -38,6 +40,10 @@ export default function ProductFormModal({
   const colorInput = Array.isArray(formData.colors)
     ? formData.colors.join(", ")
     : "";
+
+  const currentImageCount = formData.images.length;
+  const remainingSlots = Math.max(0, MAX_PRODUCT_IMAGES - currentImageCount);
+  const isAtImageLimit = currentImageCount >= MAX_PRODUCT_IMAGES;
 
   const handleSizesChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -246,24 +252,45 @@ export default function ProductFormModal({
 
               {/* Staging File Dropzone */}
               <div>
-                <label className="font-bold uppercase tracking-wider text-[#1A1A1A]">
-                  Product Images
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="font-bold uppercase tracking-wider text-[#1A1A1A]">
+                    Product Images
+                  </label>
+                  <span
+                    className={`text-[10px] font-bold ${
+                      isAtImageLimit ? "text-amber-600" : "text-[#76726E]"
+                    }`}
+                  >
+                    {currentImageCount} / {MAX_PRODUCT_IMAGES} photos
+                  </span>
+                </div>
 
                 <div className="mt-1 flex items-center justify-center w-full">
-                  <label className="flex flex-col items-center justify-center w-full h-32 border-2 border-[#EAE8E4] border-dashed rounded-lg cursor-pointer bg-[#FAF9F6] hover:bg-[#FAF5EF] transition-colors">
-                    <div className="flex flex-col items-center justify-center pt-5 pb-6">
+                  <label
+                    className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-lg transition-colors ${
+                      isAtImageLimit
+                        ? "border-[#EAE8E4] bg-[#F5F4F0] cursor-not-allowed opacity-60"
+                        : "border-[#EAE8E4] cursor-pointer bg-[#FAF9F6] hover:bg-[#FAF5EF]"
+                    }`}
+                  >
+                    <div className="flex flex-col items-center justify-center pt-5 pb-6 px-4 text-center">
                       <LuUpload className="w-6 h-6 text-[#C4956A] mb-2" />
                       <p className="text-xs text-[#1A1A1A] font-semibold">
-                        Click to attach image
+                        {isAtImageLimit
+                          ? `Maximum of ${MAX_PRODUCT_IMAGES} photos reached`
+                          : `Click to attach image${remainingSlots > 1 ? "s" : ""} (${remainingSlots} slot${remainingSlots === 1 ? "" : "s"} left)`}
                       </p>
                       <p className="text-[10px] text-[#76726E]">
-                        Uploaded automatically upon publishing
+                        {isAtImageLimit
+                          ? "Remove an existing photo below to replace it"
+                          : `Up to ${MAX_PRODUCT_IMAGES} photos per product • Uploaded automatically upon saving`}
                       </p>
                     </div>
                     <input
                       type="file"
                       accept="image/*"
+                      multiple
+                      disabled={isAtImageLimit}
                       onChange={onFileSelect}
                       className="hidden"
                     />

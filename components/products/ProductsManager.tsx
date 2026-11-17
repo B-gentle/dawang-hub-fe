@@ -24,7 +24,9 @@ import { apiClient } from "@/lib/api-client";
 import { categoryApi } from "@/lib/api/category-api";
 import { Product, CreateProductInput } from "@/types/product";
 import { Category } from "@/types/category";
-import ProductFormModal from "@/components/products/ProductFormModal";
+import ProductFormModal, {
+  MAX_PRODUCT_IMAGES,
+} from "@/components/products/ProductFormModal";
 import { VendorOption } from "../orders/OrdersManager";
 
 interface PaginatedResponse<T> {
@@ -274,7 +276,7 @@ export default function ProductsManager({
           : product.discountPrice || 0,
       stockQuantity: product.stockQuantity || 0,
       sku: product.sku || "",
-      images: product.images || [],
+      images: (product.images || []).slice(0, MAX_PRODUCT_IMAGES),
       sizes: product.sizes || [],
       colors: product.colors || [],
       isFeatured: product.isFeatured || false,
@@ -320,23 +322,50 @@ export default function ProductsManager({
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const selectedFiles = Array.from(e.target.files || []);
+    if (selectedFiles.length === 0) return;
 
-    const localPreviewUrl = URL.createObjectURL(file);
-    setPendingFiles((prev) => [...prev, file]);
+    const remainingSlots = MAX_PRODUCT_IMAGES - formData.images.length;
+    if (remainingSlots <= 0) {
+      toast.error(
+        `Maximum of ${MAX_PRODUCT_IMAGES} photos allowed per product.`,
+      );
+      e.target.value = "";
+      return;
+    }
+
+    const filesToAttach = selectedFiles.slice(0, remainingSlots);
+    if (selectedFiles.length > remainingSlots) {
+      toast.warning(
+        `Only ${remainingSlots} photo${remainingSlots === 1 ? "" : "s"} attached (limit is ${MAX_PRODUCT_IMAGES} per product).`,
+      );
+    } else {
+      toast.info(
+        `${filesToAttach.length} image${filesToAttach.length === 1 ? "" : "s"} attached.`,
+      );
+    }
+
+    const newPreviewUrls = filesToAttach.map((file) =>
+      URL.createObjectURL(file),
+    );
+    setPendingFiles((prev) => [...prev, ...filesToAttach]);
     setFormData((prev) => ({
       ...prev,
-      images: [...prev.images, localPreviewUrl],
+      images: [...prev.images, ...newPreviewUrls],
     }));
-    toast.info("Image attached successfully.");
     e.target.value = "";
   };
 
   const handleRemoveImage = (index: number) => {
-    if (index < pendingFiles.length) {
-      setPendingFiles((prev) => prev.filter((_, i) => i !== index));
+    const existingRemoteCount = formData.images.filter(
+      (img) => !img.startsWith("blob:"),
+    ).length;
+
+    if (index >= existingRemoteCount) {
+      const pendingIndex = index - existingRemoteCount;
+      setPendingFiles((prev) => prev.filter((_, i) => i !== pendingIndex));
     }
+
     setFormData((prev) => ({
       ...prev,
       images: prev.images.filter((_, i) => i !== index),
@@ -345,13 +374,27 @@ export default function ProductsManager({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (formData.images.length > MAX_PRODUCT_IMAGES) {
+      toast.error(
+        `A product cannot have more than ${MAX_PRODUCT_IMAGES} photos.`,
+      );
+      return;
+    }
+
     setSubmitting(true);
 
     const submissionPromise = (async (): Promise<string> => {
       if (editingProduct) {
-        const existingUrls = formData.images.filter(
-          (img) => !img.startsWith("blob:"),
+        const existingUrls = formData.images
+          .filter((img) => !img.startsWith("blob:"))
+          .slice(0, MAX_PRODUCT_IMAGES);
+        const remainingUploadSlots = Math.max(
+          0,
+          MAX_PRODUCT_IMAGES - existingUrls.length,
         );
+        const filesToUpload = pendingFiles.slice(0, remainingUploadSlots);
+
         const updatePayload: Partial<CreateProductInput> = {
           name: formData.name,
           description: formData.description,
@@ -371,13 +414,15 @@ export default function ProductsManager({
 
         await apiClient.updateProduct(editingProduct.id, updatePayload);
 
-        for (const file of pendingFiles) {
+        for (const file of filesToUpload) {
           await apiClient.uploadToCloudflare(editingProduct.id, file);
         }
 
         await loadCatalogData();
         return "Product updated successfully!";
       } else {
+        const filesToUpload = pendingFiles.slice(0, MAX_PRODUCT_IMAGES);
+
         const creationPayload: CreateProductInput = {
           name: formData.name,
           description: formData.description,
@@ -398,7 +443,7 @@ export default function ProductsManager({
 
         const createdProduct = await apiClient.createProduct(creationPayload);
 
-        for (const file of pendingFiles) {
+        for (const file of filesToUpload) {
           await apiClient.uploadToCloudflare(createdProduct.id, file);
         }
 
