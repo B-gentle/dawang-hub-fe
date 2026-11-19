@@ -70,7 +70,14 @@ export interface OrderResponse {
   trackingHistory?: ShipmentCheckpoint[];
   deliveredAt?: string;
   confirmedAt?: string;
+  disputeReason?: string;
+  disputedAt?: string;
   vendorId?: string;
+  vendor?: {
+    id: string;
+    storeName: string;
+    slug?: string;
+  } | null;
   createdAt: string;
 }
 
@@ -95,6 +102,7 @@ export interface UpdateOrderStatusPayload {
     | "SHIPPED"
     | "AWAITING_CONFIRMATION"
     | "DELIVERED"
+    | "DISPUTED"
     | "CANCELLED";
   courierName?: string;
   trackingNumber?: string;
@@ -109,13 +117,31 @@ export const ordersApi = {
       body: JSON.stringify(payload),
     }),
 
-  getUserOrders: () => fetcher<OrderResponse[]>("/orders"),
+  getUserOrders: (params?: GetOrdersParams) => {
+    const searchParams = new URLSearchParams();
+    if (params?.skip !== undefined)
+      searchParams.set("skip", params.skip.toString());
+    if (params?.limit !== undefined)
+      searchParams.set("limit", params.limit.toString());
+    if (params?.sort) searchParams.set("sort", params.sort);
+
+    const queryString = searchParams.toString();
+    return fetcher<PaginatedOrdersResponse>(
+      `/orders${queryString ? `?${queryString}` : ""}`,
+    );
+  },
 
   getOrderById: (id: string) => fetcher<OrderResponse>(`/orders/${id}`),
 
   confirmOrderDelivery: (id: string) =>
     fetcher<OrderResponse>(`/orders/${id}/confirm-delivery`, {
       method: "PATCH",
+    }),
+
+  disputeOrder: (id: string, reason: string) =>
+    fetcher<OrderResponse>(`/orders/${id}/dispute`, {
+      method: "PATCH",
+      body: JSON.stringify({ reason }),
     }),
 
   getVendorOrders: (params?: GetOrdersParams) => {

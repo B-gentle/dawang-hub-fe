@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Cookies from "js-cookie";
 import {
   FiShoppingBag,
@@ -16,6 +17,10 @@ import {
   FiCheckCircle,
   FiMapPin,
   FiClock,
+  FiAlertTriangle,
+  FiArrowRight,
+  FiChevronLeft,
+  FiChevronRight,
 } from "react-icons/fi";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
@@ -24,12 +29,26 @@ import { AddressPayload, UpdateProfilePayload } from "@/lib/api/users-api";
 import { ordersApi, OrderResponse } from "@/lib/api/orders-api";
 import AddressModal from "@/components/account/AddressModal";
 import EditProfileModal from "@/components/account/EditProfileModal";
-import OrderList, {
-  OrderResponse as LegacyOrderResponse,
-} from "@/components/account/OrderList";
+import OrderDisputeModal from "@/components/account/OrderDisputeModal";
 
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
+const ORDERS_PAGE_LIMIT = 8;
+
+function getStatusBadgeClasses(status: string): string {
+  switch (status?.toUpperCase()) {
+    case "DELIVERED":
+      return "bg-emerald-50 text-emerald-700 border-emerald-200";
+    case "AWAITING_CONFIRMATION":
+      return "bg-amber-50 text-amber-800 border-amber-200";
+    case "DISPUTED":
+      return "bg-rose-50 text-rose-700 border-rose-200";
+    case "CANCELLED":
+      return "bg-stone-100 text-stone-600 border-stone-200";
+    default:
+      return "bg-[#FAF9F6] text-[#151413] border-[#EAE8E4]";
+  }
+}
 
 export default function AccountPage() {
   const router = useRouter();
@@ -37,10 +56,20 @@ export default function AccountPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [addresses, setAddresses] = useState<AddressPayload[]>([]);
+
+  // Paginated orders state
   const [orders, setOrders] = useState<OrderResponse[]>([]);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [page, setPage] = useState(1);
+  const [loadingOrders, setLoadingOrders] = useState(false);
+
   const [confirmingOrderId, setConfirmingOrderId] = useState<string | null>(
     null,
   );
+  const [disputeTargetOrderId, setDisputeTargetOrderId] = useState<
+    string | null
+  >(null);
+  const [submittingDispute, setSubmittingDispute] = useState(false);
 
   // Modal controls
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
@@ -49,7 +78,25 @@ export default function AccountPage() {
     null,
   );
 
-  const loadAccountData = async () => {
+  const fetchOrdersPage = useCallback(async (targetPage: number) => {
+    setLoadingOrders(true);
+    try {
+      const skip = (targetPage - 1) * ORDERS_PAGE_LIMIT;
+      const res = await ordersApi.getUserOrders({
+        skip,
+        limit: ORDERS_PAGE_LIMIT,
+        sort: "DESC",
+      });
+      setOrders(Array.isArray(res?.data) ? res.data : []);
+      setTotalOrders(typeof res?.total === "number" ? res.total : 0);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to load orders");
+    } finally {
+      setLoadingOrders(false);
+    }
+  }, []);
+
+  const loadAccountData = useCallback(async () => {
     const token = Cookies.get(TOKEN_COOKIE_NAME);
     if (!token) {
       router.push("/login?redirect=/account");
@@ -57,38 +104,38 @@ export default function AccountPage() {
     }
 
     try {
-      const [meRes, addrRes, ordersRes] = await Promise.allSettled([
+      const [meRes, addrRes] = await Promise.allSettled([
         apiClient.getMe(),
         apiClient.getAddresses(),
-        ordersApi.getUserOrders(),
       ]);
 
       if (meRes.status === "fulfilled") setProfile(meRes.value as UserProfile);
       if (addrRes.status === "fulfilled" && Array.isArray(addrRes.value)) {
         setAddresses(addrRes.value as AddressPayload[]);
       }
-      if (ordersRes.status === "fulfilled" && Array.isArray(ordersRes.value)) {
-        setOrders(ordersRes.value);
-      }
+
+      await fetchOrdersPage(1);
     } catch (err) {
       console.error("Failed to load account details:", err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [fetchOrdersPage, router]);
 
   useEffect(() => {
     let active = true;
-
     queueMicrotask(() => {
       if (active) loadAccountData();
     });
-
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [loadAccountData]);
+
+  const handlePageChange = async (nextPage: number) => {
+    setPage(nextPage);
+    await fetchOrdersPage(nextPage);
+  };
 
   const handleConfirmDelivery = async (orderId: string) => {
     if (
@@ -103,13 +150,31 @@ export default function AccountPage() {
       setConfirmingOrderId(orderId);
       await ordersApi.confirmOrderDelivery(orderId);
       toast.success("Delivery confirmed! Thank you for shopping with us.");
-      await loadAccountData();
+      await fetchOrdersPage(page);
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to confirm delivery",
       );
     } finally {
       setConfirmingOrderId(null);
+    }
+  };
+
+  const handleDisputeOrder = async (orderId: string, reason: string) => {
+    try {
+      setSubmittingDispute(true);
+      await ordersApi.disputeOrder(orderId, reason);
+      toast.success(
+        "Dispute submitted. Escrow release is paused and an admin has been notified.",
+      );
+      setDisputeTargetOrderId(null);
+      await fetchOrdersPage(page);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to submit dispute",
+      );
+    } finally {
+      setSubmittingDispute(false);
     }
   };
 
@@ -180,6 +245,7 @@ export default function AccountPage() {
   const awaitingConfirmationOrders = orders.filter((o) =>
     ["SHIPPED", "AWAITING_CONFIRMATION"].includes(o.status?.toUpperCase()),
   );
+  const totalPages = Math.max(1, Math.ceil(totalOrders / ORDERS_PAGE_LIMIT));
 
   return (
     <div className="min-h-screen bg-white font-sans text-[#151413]">
@@ -316,87 +382,199 @@ export default function AccountPage() {
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-bold uppercase tracking-wider text-[#151413] flex items-center gap-1.5">
                     <FiClock className="w-4 h-4 text-[#C4956A]" /> Active
-                    Shipments & Delivery Confirmation
+                    Shipments &amp; Delivery Confirmation
                   </span>
                 </div>
 
                 <div className="flex flex-col gap-3">
-                  {awaitingConfirmationOrders.map((order) => (
-                    <div
-                      key={order.id}
-                      className="bg-white p-4 rounded-md border border-[#EAE8E4] flex flex-col gap-3 text-xs"
-                    >
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div>
-                          <p className="font-mono font-bold text-[#151413]">
-                            Order #{order.id.slice(0, 8).toUpperCase()}
-                          </p>
-                          <p className="text-[11px] text-[#76726E]">
-                            Status:{" "}
-                            <strong className="text-[#C4956A]">
-                              {order.status.replace("_", " ")}
-                            </strong>
-                            {order.courierName ? ` • ${order.courierName}` : ""}
-                            {order.trackingNumber
-                              ? ` (${order.trackingNumber})`
-                              : ""}
-                          </p>
+                  {awaitingConfirmationOrders.map((order) => {
+                    const isAwaiting =
+                      order.status?.toUpperCase() === "AWAITING_CONFIRMATION";
+                    return (
+                      <div
+                        key={order.id}
+                        className="bg-white p-4 rounded-md border border-[#EAE8E4] flex flex-col gap-3 text-xs"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div>
+                            <Link
+                              href={`/account/orders/${order.id}`}
+                              className="font-mono font-bold text-[#151413] hover:text-[#C4956A] underline"
+                            >
+                              Order #{order.id.slice(0, 8).toUpperCase()}
+                            </Link>
+                            <p className="text-[11px] text-[#76726E]">
+                              Status:{" "}
+                              <strong className="text-[#C4956A]">
+                                {order.status.replace("_", " ")}
+                              </strong>
+                              {order.courierName
+                                ? ` • ${order.courierName}`
+                                : ""}
+                              {order.trackingNumber
+                                ? ` (${order.trackingNumber})`
+                                : ""}
+                            </p>
+                          </div>
+
+                          <div className="flex flex-wrap items-center gap-2">
+                            {isAwaiting && (
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setDisputeTargetOrderId(order.id)
+                                }
+                                className="px-3 py-2 border border-rose-200 bg-rose-50 text-rose-700 text-[11px] font-bold uppercase tracking-wider rounded-md hover:bg-rose-100 transition-colors flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <FiAlertTriangle className="w-3.5 h-3.5" />
+                                Dispute
+                              </button>
+                            )}
+
+                            <button
+                              type="button"
+                              disabled={confirmingOrderId === order.id}
+                              onClick={() => handleConfirmDelivery(order.id)}
+                              className="px-4 py-2 bg-emerald-700 text-white text-[11px] font-bold uppercase tracking-wider rounded-md hover:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                            >
+                              <FiCheckCircle className="w-3.5 h-3.5" />
+                              {confirmingOrderId === order.id
+                                ? "Confirming..."
+                                : "Confirm Delivery"}
+                            </button>
+                          </div>
                         </div>
 
-                        <button
-                          type="button"
-                          disabled={confirmingOrderId === order.id}
-                          onClick={() => handleConfirmDelivery(order.id)}
-                          className="px-4 py-2 bg-emerald-700 text-white text-[11px] font-bold uppercase tracking-wider rounded-md hover:bg-emerald-800 transition-colors flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                        >
-                          <FiCheckCircle className="w-3.5 h-3.5" />
-                          {confirmingOrderId === order.id
-                            ? "Confirming..."
-                            : "Confirm Order Delivery"}
-                        </button>
-                      </div>
+                        {isAwaiting && (
+                          <p className="text-[11px] text-[#76726E] bg-amber-50/70 border border-amber-200/70 rounded px-3 py-2">
+                            Funds will automatically release to the vendor 24
+                            hours after delivery unless you dispute this order.
+                          </p>
+                        )}
 
-                      {order.currentLocation && (
-                        <div className="p-2.5 rounded bg-[#FAF9F6] border border-[#EAE8E4] flex items-center gap-2 text-[11px]">
-                          <FiMapPin className="w-3.5 h-3.5 text-[#C4956A] shrink-0" />
-                          <span>
-                            Current Location:{" "}
-                            <strong>{order.currentLocation}</strong>
-                          </span>
-                        </div>
-                      )}
-
-                      {order.trackingHistory &&
-                        order.trackingHistory.length > 0 && (
-                          <div className="pl-3 border-l-2 border-[#C4956A] flex flex-col gap-1.5">
-                            {order.trackingHistory.map((cp, idx) => (
-                              <div key={idx} className="text-[11px]">
-                                <span className="font-bold text-[#151413]">
-                                  {cp.location}
-                                </span>
-                                {cp.note ? ` — ${cp.note}` : ""}
-                                <span className="block text-[10px] text-[#A39E98]">
-                                  {new Date(cp.timestamp).toLocaleString()}
-                                </span>
-                              </div>
-                            ))}
+                        {order.currentLocation && (
+                          <div className="p-2.5 rounded bg-[#FAF9F6] border border-[#EAE8E4] flex items-center gap-2 text-[11px]">
+                            <FiMapPin className="w-3.5 h-3.5 text-[#C4956A] shrink-0" />
+                            <span>
+                              Current Location:{" "}
+                              <strong>{order.currentLocation}</strong>
+                            </span>
                           </div>
                         )}
-                    </div>
-                  ))}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             )}
 
-            <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413] flex items-center gap-2 pb-2 border-b border-[#EAE8E4]">
-              <FiShoppingBag className="w-4 h-4 text-[#C4956A]" /> Order History
-              ({orders.length})
-            </h2>
+            <div className="flex items-center justify-between pb-2 border-b border-[#EAE8E4]">
+              <h2 className="font-heading text-sm font-bold uppercase tracking-wider text-[#151413] flex items-center gap-2">
+                <FiShoppingBag className="w-4 h-4 text-[#C4956A]" /> Order
+                History ({totalOrders})
+              </h2>
+              <span className="text-[11px] text-[#76726E]">
+                Page {page} of {totalPages}
+              </span>
+            </div>
 
-            <OrderList orders={orders as unknown as LegacyOrderResponse[]} />
+            {loadingOrders ? (
+              <div className="py-12 flex items-center justify-center gap-2 text-xs text-[#76726E]">
+                <FiRefreshCw className="w-4 h-4 animate-spin text-[#C4956A]" />
+                Loading orders...
+              </div>
+            ) : orders.length === 0 ? (
+              <div className="bg-[#FAF9F6] border border-[#EAE8E4] rounded-md p-8 text-center text-xs text-[#76726E]">
+                You haven&apos;t placed any orders yet.
+              </div>
+            ) : (
+              <div className="flex flex-col gap-3">
+                {orders.map((order) => (
+                  <div
+                    key={order.id}
+                    className="bg-white border border-[#EAE8E4] rounded-lg p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs hover:border-[#C4956A] transition-colors"
+                  >
+                    <div className="flex flex-col gap-1">
+                      <div className="flex items-center gap-2.5 flex-wrap">
+                        <span className="font-mono font-bold text-sm text-[#151413]">
+                          #{order.id.slice(0, 8).toUpperCase()}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase border ${getStatusBadgeClasses(
+                            order.status,
+                          )}`}
+                        >
+                          {order.status.replace("_", " ")}
+                        </span>
+                      </div>
+                      <p className="text-[#76726E]">
+                        {new Date(order.createdAt).toLocaleDateString()} •{" "}
+                        {order.items?.length || 0} item(s) •{" "}
+                        <strong className="text-[#151413]">
+                          ₦{Number(order.totalAmount).toLocaleString()}
+                        </strong>
+                      </p>
+                      {order.status === "DISPUTED" && order.disputeReason && (
+                        <p className="text-[11px] text-rose-700 mt-0.5">
+                          Dispute reason: {order.disputeReason}
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-2 self-end sm:self-center">
+                      <Link
+                        href={`/account/orders/${order.id}`}
+                        className="px-3.5 py-2 bg-[#151413] text-white text-[11px] font-bold uppercase tracking-wider rounded-md hover:bg-[#2A2725] transition-colors flex items-center gap-1.5"
+                      >
+                        View Order{" "}
+                        <FiArrowRight className="w-3.5 h-3.5 text-[#C4956A]" />
+                      </Link>
+                    </div>
+                  </div>
+                ))}
+
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between pt-3">
+                    <button
+                      type="button"
+                      disabled={page <= 1 || loadingOrders}
+                      onClick={() => handlePageChange(page - 1)}
+                      className="px-3.5 py-2 border border-[#EAE8E4] rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40 cursor-pointer hover:bg-[#FAF9F6]"
+                    >
+                      <FiChevronLeft className="w-4 h-4" /> Previous
+                    </button>
+
+                    <span className="text-xs text-[#76726E]">
+                      Showing {(page - 1) * ORDERS_PAGE_LIMIT + 1}–
+                      {Math.min(page * ORDERS_PAGE_LIMIT, totalOrders)} of{" "}
+                      {totalOrders}
+                    </span>
+
+                    <button
+                      type="button"
+                      disabled={page >= totalPages || loadingOrders}
+                      onClick={() => handlePageChange(page + 1)}
+                      className="px-3.5 py-2 border border-[#EAE8E4] rounded-md text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 disabled:opacity-40 cursor-pointer hover:bg-[#FAF9F6]"
+                    >
+                      Next <FiChevronRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
       </div>
+
+      {/* Dispute Modal */}
+      <OrderDisputeModal
+        isOpen={Boolean(disputeTargetOrderId)}
+        orderId={disputeTargetOrderId}
+        submitting={submittingDispute}
+        onClose={() => setDisputeTargetOrderId(null)}
+        onSubmit={handleDisputeOrder}
+      />
 
       {/* Edit Profile Modal */}
       <EditProfileModal
