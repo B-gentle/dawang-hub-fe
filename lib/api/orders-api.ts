@@ -192,4 +192,16 @@ export const ordersApi = {
 
   verifyPayment: (reference: string) =>
     fetcher<VerifyPaymentResponse>(`/payments/verify/${reference}`),
+
+  resolveDisputeAdmin: (
+    id: string,
+    payload: {
+      resolution: "RELEASE_TO_VENDOR" | "REFUND_CUSTOMER";
+      note?: string;
+    },
+  ) =>
+    fetcher<OrderResponse>(`/orders/admin/${id}/resolve-dispute`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
 };

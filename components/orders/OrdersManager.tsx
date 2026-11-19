@@ -14,6 +14,8 @@ import {
   FiClock,
   FiXCircle,
   FiMapPin,
+  FiAlertTriangle,
+  FiShield,
 } from "react-icons/fi";
 import { toast } from "sonner";
 import {
@@ -37,10 +39,11 @@ interface OrdersManagerProps {
 
 const ORDER_STATUSES = [
   "ALL",
+  "DISPUTED",
+  "AWAITING_CONFIRMATION",
   "PENDING",
   "PAID",
   "SHIPPED",
-  "AWAITING_CONFIRMATION",
   "DELIVERED",
   "CANCELLED",
 ] as const;
@@ -65,6 +68,9 @@ export default function OrdersManager({
     null,
   );
   const [updating, setUpdating] = useState(false);
+  const [resolvingDispute, setResolvingDispute] = useState(false);
+  const [resolutionNote, setResolutionNote] = useState("");
+
   const [editStatus, setEditStatus] =
     useState<UpdateOrderStatusPayload["status"]>("PENDING");
   const [courierName, setCourierName] = useState("");
@@ -148,6 +154,7 @@ export default function OrdersManager({
     setTrackingNumber(order.trackingNumber || "");
     setCurrentLocation(order.currentLocation || "");
     setLocationNote("");
+    setResolutionNote("");
 
     try {
       const detailed = await ordersApi.getOrderById(order.id);
@@ -197,6 +204,41 @@ export default function OrdersManager({
     }
   };
 
+  const handleResolveDispute = async (
+    resolution: "RELEASE_TO_VENDOR" | "REFUND_CUSTOMER",
+  ) => {
+    if (!selectedOrder) return;
+
+    const confirmMessage =
+      resolution === "RELEASE_TO_VENDOR"
+        ? "Release escrow funds to the vendor's withdrawable balance and close this dispute?"
+        : "Cancel this order and deduct held escrow funds from the vendor's pending balance?";
+
+    if (!confirm(confirmMessage)) return;
+
+    try {
+      setResolvingDispute(true);
+      const updated = await ordersApi.resolveDisputeAdmin(selectedOrder.id, {
+        resolution,
+        note: resolutionNote.trim() || undefined,
+      });
+      toast.success(
+        resolution === "RELEASE_TO_VENDOR"
+          ? "Dispute resolved: Escrow released to vendor."
+          : "Dispute resolved: Order cancelled & escrow reversed.",
+      );
+      setResolutionNote("");
+      setSelectedOrder(updated);
+      await loadOrders();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to resolve dispute",
+      );
+    } finally {
+      setResolvingDispute(false);
+    }
+  };
+
   const filteredOrders = orders.filter((order) => {
     if (
       statusFilter !== "ALL" &&
@@ -232,6 +274,12 @@ export default function OrdersManager({
             <FiCheckCircle className="w-3 h-3" /> Delivered
           </span>
         );
+      case "DISPUTED":
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-800 bg-rose-100 px-2.5 py-1 rounded-full border border-rose-300">
+            <FiAlertTriangle className="w-3 h-3" /> Disputed
+          </span>
+        );
       case "AWAITING_CONFIRMATION":
         return (
           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-purple-800 bg-purple-50 px-2.5 py-1 rounded-full border border-purple-200">
@@ -253,7 +301,7 @@ export default function OrdersManager({
         );
       case "CANCELLED":
         return (
-          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-rose-800 bg-rose-50 px-2.5 py-1 rounded-full border border-rose-200">
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-stone-700 bg-stone-100 px-2.5 py-1 rounded-full border border-stone-200">
             <FiXCircle className="w-3 h-3" /> Cancelled
           </span>
         );
@@ -273,6 +321,8 @@ export default function OrdersManager({
   };
 
   const totalPages = Math.ceil(totalOrders / pageSize) || 1;
+  const isSelectedDisputed =
+    selectedOrder?.status?.toUpperCase() === "DISPUTED";
 
   return (
     <div className="flex flex-col gap-8 font-sans pb-12 text-[#151413]">
@@ -291,7 +341,7 @@ export default function OrdersManager({
           </h1>
           <p className="text-sm text-[#76726E] mt-1">
             {mode === "admin"
-              ? "Monitor customer purchases, vendor fulfillment, and shipment checkpoints."
+              ? "Monitor customer purchases, vendor fulfillment, disputes, and shipment checkpoints."
               : "Update shipment checkpoints and mark orders delivered so customers can confirm receipt."}
           </p>
         </div>
@@ -350,8 +400,12 @@ export default function OrdersManager({
               onClick={() => setStatusFilter(status)}
               className={`px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors shrink-0 cursor-pointer ${
                 statusFilter === status
-                  ? "bg-[#151413] text-white"
-                  : "bg-[#FAF9F6] text-[#76726E] border border-[#EAE8E4] hover:text-[#151413]"
+                  ? status === "DISPUTED"
+                    ? "bg-rose-700 text-white"
+                    : "bg-[#151413] text-white"
+                  : status === "DISPUTED"
+                    ? "bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
+                    : "bg-[#FAF9F6] text-[#76726E] border border-[#EAE8E4] hover:text-[#151413]"
               }`}
             >
               {status.replace("_", " ")}
@@ -407,10 +461,16 @@ export default function OrdersManager({
                       ? Number(order.vendorPayoutAmount ?? order.totalAmount)
                       : Number(order.totalAmount);
 
+                  const isDisputed = order.status?.toUpperCase() === "DISPUTED";
+
                   return (
                     <tr
                       key={order.id}
-                      className="hover:bg-[#FAF9F6]/50 transition-colors"
+                      className={
+                        isDisputed
+                          ? "bg-rose-50/40 hover:bg-rose-50/70 transition-colors"
+                          : "hover:bg-[#FAF9F6]/50 transition-colors"
+                      }
                     >
                       <td className="py-4 px-4 font-mono font-semibold text-[#151413]">
                         #{order.id.slice(0, 8).toUpperCase()}
@@ -448,9 +508,15 @@ export default function OrdersManager({
                       <td className="py-4 px-4 text-right">
                         <button
                           onClick={() => handleOpenDetails(order)}
-                          className="px-3 py-1.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[11px] font-bold uppercase tracking-wider text-[#151413] hover:bg-[#151413] hover:text-white transition-colors cursor-pointer"
+                          className={`px-3 py-1.5 rounded-md text-[11px] font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                            isDisputed && mode === "admin"
+                              ? "bg-rose-700 text-white hover:bg-rose-800"
+                              : "bg-[#FAF9F6] border border-[#EAE8E4] text-[#151413] hover:bg-[#151413] hover:text-white"
+                          }`}
                         >
-                          Manage
+                          {isDisputed && mode === "admin"
+                            ? "Resolve Dispute"
+                            : "Manage"}
                         </button>
                       </td>
                     </tr>
@@ -510,6 +576,79 @@ export default function OrdersManager({
                   <FiX className="w-5 h-5" />
                 </button>
               </div>
+
+              {/* Dispute Alert & Admin Resolution Panel */}
+              {isSelectedDisputed && (
+                <div className="bg-rose-50 border border-rose-200 rounded-lg p-4 flex flex-col gap-3 text-xs">
+                  <div className="flex items-start gap-2 text-rose-900">
+                    <FiAlertTriangle className="w-4 h-4 text-rose-700 shrink-0 mt-0.5" />
+                    <div>
+                      <p className="font-bold uppercase tracking-wider text-[11px]">
+                        Customer Dispute Opened
+                      </p>
+                      {selectedOrder.disputedAt && (
+                        <p className="text-[10px] text-rose-700">
+                          Opened{" "}
+                          {new Date(selectedOrder.disputedAt).toLocaleString()}
+                        </p>
+                      )}
+                      <p className="mt-1.5 text-rose-950 font-medium">
+                        &ldquo;
+                        {selectedOrder.disputeReason ||
+                          "No reason provided by customer"}
+                        &rdquo;
+                      </p>
+                    </div>
+                  </div>
+
+                  {mode === "admin" ? (
+                    <div className="pt-2 border-t border-rose-200 flex flex-col gap-2.5">
+                      <span className="text-[10px] font-bold uppercase tracking-wider text-rose-800 flex items-center gap-1">
+                        <FiShield className="w-3.5 h-3.5" /> Admin Dispute
+                        Resolution
+                      </span>
+                      <input
+                        type="text"
+                        placeholder="Resolution note (optional, recorded in timeline)"
+                        value={resolutionNote}
+                        onChange={(e) => setResolutionNote(e.target.value)}
+                        className="w-full px-3 py-2 bg-white border border-rose-200 rounded-md text-xs text-[#151413]"
+                      />
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          disabled={resolvingDispute}
+                          onClick={() =>
+                            handleResolveDispute("RELEASE_TO_VENDOR")
+                          }
+                          className="px-3 py-2 bg-emerald-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-emerald-800 disabled:opacity-50 cursor-pointer"
+                        >
+                          {resolvingDispute
+                            ? "Processing..."
+                            : "Release Escrow to Vendor"}
+                        </button>
+                        <button
+                          type="button"
+                          disabled={resolvingDispute}
+                          onClick={() =>
+                            handleResolveDispute("REFUND_CUSTOMER")
+                          }
+                          className="px-3 py-2 bg-rose-700 text-white rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-rose-800 disabled:opacity-50 cursor-pointer"
+                        >
+                          {resolvingDispute
+                            ? "Processing..."
+                            : "Cancel & Reverse Escrow"}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-[11px] text-rose-800 pt-2 border-t border-rose-200">
+                      Escrow payout is paused while platform administrators
+                      review this dispute.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Financial Breakdown */}
               <div className="bg-[#FAF9F6] p-4 rounded-md border border-[#EAE8E4] grid grid-cols-2 gap-3 text-xs">
@@ -638,100 +777,105 @@ export default function OrdersManager({
                 )}
 
               {/* Update Fulfillment & Location Form */}
-              <form
-                onSubmit={handleUpdateStatus}
-                className="flex flex-col gap-4 pt-3 border-t border-[#EAE8E4]"
-              >
-                <span className="font-bold uppercase tracking-wider text-[10px] text-[#76726E]">
-                  Update Status & Current Location
-                </span>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-[#76726E] uppercase">
-                    Order Status
-                  </label>
-                  <select
-                    value={editStatus}
-                    onChange={(e) =>
-                      setEditStatus(
-                        e.target.value as UpdateOrderStatusPayload["status"],
-                      )
-                    }
-                    className="w-full p-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs font-semibold text-[#151413] focus:outline-hidden focus:border-[#C4956A]"
-                  >
-                    <option value="PENDING">PENDING</option>
-                    {mode === "admin" && <option value="PAID">PAID</option>}
-                    <option value="SHIPPED">SHIPPED (In Transit)</option>
-                    <option value="DELIVERED">
-                      DELIVERED (Triggers 24h Customer Confirmation)
-                    </option>
-                    <option value="CANCELLED">CANCELLED</option>
-                  </select>
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-[#76726E] uppercase flex items-center gap-1">
-                    <FiMapPin className="w-3.5 h-3.5 text-[#C4956A]" /> Current
-                    Package Location
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Dispatched from Ikeja Hub"
-                    value={currentLocation}
-                    onChange={(e) => setCurrentLocation(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413]"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-[11px] font-bold text-[#76726E] uppercase">
-                    Tracking Note (Optional)
-                  </label>
-                  <input
-                    type="text"
-                    placeholder="e.g., Rider out for doorstep delivery"
-                    value={locationNote}
-                    onChange={(e) => setLocationNote(e.target.value)}
-                    className="w-full px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413]"
-                  />
-                </div>
-
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-[#76726E] uppercase">
-                      Courier Name
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="GIG Logistics"
-                      value={courierName}
-                      onChange={(e) => setCourierName(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413]"
-                    />
-                  </div>
-
-                  <div className="flex flex-col gap-1.5">
-                    <label className="text-[11px] font-bold text-[#76726E] uppercase">
-                      Tracking Number
-                    </label>
-                    <input
-                      type="text"
-                      placeholder="TRK-987654"
-                      value={trackingNumber}
-                      onChange={(e) => setTrackingNumber(e.target.value)}
-                      className="w-full px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413]"
-                    />
-                  </div>
-                </div>
-
-                <button
-                  type="submit"
-                  disabled={updating}
-                  className="mt-2 w-full py-3 bg-[#151413] text-white rounded-md text-xs font-bold uppercase tracking-widest hover:bg-[#2A2725] transition-colors cursor-pointer disabled:bg-[#A39E98]"
+              {!(mode === "vendor" && isSelectedDisputed) && (
+                <form
+                  onSubmit={handleUpdateStatus}
+                  className="flex flex-col gap-4 pt-3 border-t border-[#EAE8E4]"
                 >
-                  {updating ? "Updating..." : "Save Tracking & Status"}
-                </button>
-              </form>
+                  <span className="font-bold uppercase tracking-wider text-[10px] text-[#76726E]">
+                    Update Status & Current Location
+                  </span>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[11px] font-bold text-[#76726E] uppercase">
+                      Order Status
+                    </label>
+                    <select
+                      value={editStatus}
+                      onChange={(e) =>
+                        setEditStatus(
+                          e.target.value as UpdateOrderStatusPayload["status"],
+                        )
+                      }
+                      className="w-full p-2.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs font-semibold text-[#151413] focus:outline-hidden focus:border-[#C4956A]"
+                    >
+                      <option value="PENDING">PENDING</option>
+                      {mode === "admin" && <option value="PAID">PAID</option>}
+                      <option value="SHIPPED">SHIPPED (In Transit)</option>
+                      <option value="DELIVERED">
+                        DELIVERED (Triggers 24h Customer Confirmation)
+                      </option>
+                      {mode === "admin" && (
+                        <option value="DISPUTED">DISPUTED</option>
+                      )}
+                      <option value="CANCELLED">CANCELLED</option>
+                    </select>
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[11px] font-bold text-[#76726E] uppercase flex items-center gap-1">
+                      <FiMapPin className="w-3.5 h-3.5 text-[#C4956A]" />{" "}
+                      Current Package Location
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Dispatched from Ikeja Hub"
+                      value={currentLocation}
+                      onChange={(e) => setCurrentLocation(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413]"
+                    />
+                  </div>
+
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[11px] font-bold text-[#76726E] uppercase">
+                      Tracking Note (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g., Rider out for doorstep delivery"
+                      value={locationNote}
+                      onChange={(e) => setLocationNote(e.target.value)}
+                      className="w-full px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413]"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold text-[#76726E] uppercase">
+                        Courier Name
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="GIG Logistics"
+                        value={courierName}
+                        onChange={(e) => setCourierName(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413]"
+                      />
+                    </div>
+
+                    <div className="flex flex-col gap-1.5">
+                      <label className="text-[11px] font-bold text-[#76726E] uppercase">
+                        Tracking Number
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="TRK-987654"
+                        value={trackingNumber}
+                        onChange={(e) => setTrackingNumber(e.target.value)}
+                        className="w-full px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413]"
+                      />
+                    </div>
+                  </div>
+
+                  <button
+                    type="submit"
+                    disabled={updating}
+                    className="mt-2 w-full py-3 bg-[#151413] text-white rounded-md text-xs font-bold uppercase tracking-widest hover:bg-[#2A2725] transition-colors cursor-pointer disabled:bg-[#A39E98]"
+                  >
+                    {updating ? "Updating..." : "Save Tracking & Status"}
+                  </button>
+                </form>
+              )}
             </div>
           </div>
         </div>
