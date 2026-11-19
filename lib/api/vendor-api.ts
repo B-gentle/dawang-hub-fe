@@ -338,4 +338,10 @@ export const vendorApi = {
       method: "PATCH",
       body: JSON.stringify({ status }),
     }),
+
+  deleteMyAccount: (confirmationText: string) =>
+    fetcher<{ deleted: true; message: string }>("/vendors/me", {
+      method: "DELETE",
+      body: JSON.stringify({ confirmationText }),
+    }),
 };
