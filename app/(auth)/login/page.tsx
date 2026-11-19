@@ -26,12 +26,27 @@ function LoginForm() {
 
     try {
       const response = await authApi.login({ email, password });
+      const user = response.user as typeof response.user & {
+        vendor?: unknown;
+      };
+      const hasVendorAccount =
+        user.role === "vendor" || Boolean(user.vendor);
 
-      if (redirectTo) {
+      const isSetupOrAuthRedirect =
+        redirectTo === "/vendor/setup" ||
+        redirectTo.startsWith("/vendor/setup/") ||
+        redirectTo === "/register" ||
+        redirectTo.startsWith("/register/") ||
+        redirectTo === "/login" ||
+        redirectTo.startsWith("/login/");
+
+      if (hasVendorAccount && (!redirectTo || isSetupOrAuthRedirect)) {
+        router.push("/vendor/dashboard");
+      } else if (redirectTo && !redirectTo.startsWith("/register") && !redirectTo.startsWith("/login")) {
         router.push(redirectTo);
-      } else if (response.user.role === "admin") {
+      } else if (user.role === "admin") {
         router.push("/admin");
-      } else if (response.user.role === "vendor") {
+      } else if (hasVendorAccount) {
         router.push("/vendor/dashboard");
       } else {
         router.push("/account");

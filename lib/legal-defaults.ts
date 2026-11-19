@@ -30,10 +30,10 @@ export const DEFAULT_PRIVACY_HTML = `
 
 <h2>2. Information We Collect</h2>
 <ol>
-  <li><strong>Account &amp; Profile Data:</strong> Name, email address, phone number, and encrypted authentication credentials.</li>
+  <li><strong>Account &amp; Profile Data:</strong> Name, email address, phone number, and securely hashed authentication credentials.</li>
   <li><strong>Order &amp; Delivery Data:</strong> Shipping addresses, selected product variants, order history, and shipment tracking logs.</li>
   <li><strong>Vendor Verification &amp; Settlement Data:</strong> Business name, storefront slug, contact details, and validated bank account details required for payouts.</li>
-  <li><strong>Payment Metadata:</strong> Transaction references and payment status confirmations from Paystack and Monnify. We never store raw debit or credit card numbers on our servers.</li>
+  <li><strong>Payment Metadata:</strong> Transaction references and payment status confirmations from our CBN-licensed payment processors (including Paystack and Monnify). We never store raw debit or credit card numbers on our servers.</li>
 </ol>
 
 <h2>Vendor KYC Identity Verification &amp; NDPA Data Protection</h2>
@@ -43,7 +43,7 @@ export const DEFAULT_PRIVACY_HTML = `
 <ul>
   <li><strong>Tier 1 (Payouts up to ₦50,000):</strong> Verification of your 11-digit Bank Verification Number (BVN) against your registered settlement bank account.</li>
   <li><strong>Tier 2 (Payouts above ₦50,000):</strong> Verification of your 11-digit National Identification Number (NIN) against your registered settlement account holder name.</li>
-  <li><strong>AES-256-GCM Encrypted Vault &amp; Access Auditing:</strong> Raw BVN and NIN identifiers are never stored in plain text or exposed in standard API responses. They are encrypted at rest using <strong>AES-256-GCM</strong> with a dedicated server-side key, masked to the last four digits in vendor and standard admin views, and may only be decrypted by authorized compliance administrators using a separate master vault key with immutable audit logging.</li>
+  <li><strong>Data Security &amp; Access Controls:</strong> Raw BVN and NIN identifiers are never stored in plain text or exposed in standard API responses. They are strongly encrypted at rest, masked to the last four digits in account views, and restricted to authorized compliance personnel under strict access controls and audit logging.</li>
 </ul>
 
 <h2>3. How We Use Your Information</h2>
@@ -55,7 +55,7 @@ export const DEFAULT_PRIVACY_HTML = `
 </ol>
 
 <h2>4. Data Sharing &amp; Third-Party Processors</h2>
-<p>We only share necessary order details with the specific vendor fulfilling your purchase and with trusted infrastructure providers (such as Paystack, Monnify, and cloud media hosting) strictly to deliver platform services. We do not sell your personal information to third parties.</p>
+<p>We only share necessary order details with the specific vendor fulfilling your purchase and with trusted, regulated infrastructure providers (such as our licensed payment partners Paystack and Monnify, identity verification partners, and cloud hosting providers) strictly to deliver platform services. We do not sell your personal information to third parties.</p>
 
 <h2>5. Your Rights &amp; Contact</h2>
 <p>You may access, update, or request deletion of your personal profile information from your Account dashboard or by reaching out via our official support channels listed on the platform.</p>

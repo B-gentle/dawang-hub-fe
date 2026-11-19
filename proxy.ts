@@ -40,11 +40,13 @@ export function proxy(request: NextRequest) {
   // 1. Auth Protection for /admin and /vendor routes
   if (!token) {
     const isAdminRoute = pathname.startsWith("/admin");
+    const isVendorSetupRoute =
+      pathname === "/vendor/setup" || pathname.startsWith("/vendor/setup/");
     const isVendorRoute = pathname.startsWith("/vendor");
 
     if (isAdminRoute || isVendorRoute) {
       const url = request.nextUrl.clone();
-      url.pathname = isVendorRoute ? "/register" : "/login";
+      url.pathname = isVendorSetupRoute ? "/register" : "/login";
       url.search = "";
       url.searchParams.set("redirect", `${pathname}${search}`);
       return NextResponse.redirect(url);

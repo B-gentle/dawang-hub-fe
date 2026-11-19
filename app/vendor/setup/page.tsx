@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   LuStore,
@@ -18,9 +19,11 @@ import {
   LuArrowRight,
   LuArrowLeft,
   LuPalette,
+  LuRefreshCw,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import { HeroType } from "@/lib/api/system-config-api";
+import { authApi } from "@/lib/api/auth-api";
 import { vendorApi } from "@/lib/api/vendor-api";
 import { paymentsApi } from "@/lib/api/payments-api";
 import { StorefrontPreview } from "@/components/vendor/StorefrontPreview";
@@ -99,6 +102,9 @@ const INITIAL_FORM_DATA: StoreSetupFormData = {
 };
 
 export default function StoreSetupPage() {
+  const router = useRouter();
+  const [checkingVendorStatus, setCheckingVendorStatus] = useState(true);
+
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("yearly");
   const [submitting, setSubmitting] = useState(false);
@@ -129,6 +135,37 @@ export default function StoreSetupPage() {
     }
     return INITIAL_FORM_DATA;
   });
+
+  // Safeguard: redirect users who already own a vendor account to /vendor/dashboard
+  useEffect(() => {
+    let active = true;
+
+    const verifyNotAlreadyVendor = async () => {
+      try {
+        const me = await authApi.getMe();
+        const userWithVendor = me as typeof me & { vendor?: unknown };
+        const hasVendorAccount =
+          userWithVendor?.role === "vendor" || Boolean(userWithVendor?.vendor);
+
+        if (hasVendorAccount) {
+          if (active) router.replace("/vendor/dashboard");
+          return;
+        }
+      } catch {
+        // Ignore if not loaded or unauthenticated (proxy handles unauthenticated redirects)
+      }
+
+      if (active) {
+        setCheckingVendorStatus(false);
+      }
+    };
+
+    verifyNotAlreadyVendor();
+
+    return () => {
+      active = false;
+    };
+  }, [router]);
 
   useEffect(() => {
     try {
@@ -291,6 +328,15 @@ export default function StoreSetupPage() {
       setSubmitting(false);
     }
   };
+
+  if (checkingVendorStatus) {
+    return (
+      <div className="min-h-screen bg-[#FAF9F6] flex flex-col items-center justify-center gap-2 text-xs text-[#76726E] font-sans">
+        <LuRefreshCw className="w-6 h-6 animate-spin text-[#C4956A]" />
+        Verifying vendor account status...
+      </div>
+    );
+  }
 
   const heroPreviewUrls = heroItems.map((i) => i.previewUrl);
   const imageCount = heroPreviewUrls.length;
