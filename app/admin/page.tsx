@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
 import Cookies from "js-cookie";
 import {
@@ -15,7 +15,12 @@ import {
 } from "react-icons/lu";
 import { apiClient } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
-import { DashboardAnalyticsResponse, DashboardKPIs } from "@/lib/api/admin-api";
+import {
+  adminApi,
+  DashboardAnalyticsResponse,
+  DashboardKPIs,
+  DashboardPeriod,
+} from "@/lib/api/admin-api";
 import { vendorApi, PlatformStorageStats } from "@/lib/api/vendor-api";
 import { formatBytes } from "@/lib/utils/format-bytes";
 import { getTimeGreeting } from "@/lib/utils/date";
@@ -27,14 +32,42 @@ import InventoryAlertsCard from "@/components/admin/InventoryAlertsCard";
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
 
+const PERIOD_OPTIONS: Array<{
+  value: DashboardPeriod;
+  label: string;
+  badge: string;
+}> = [
+  { value: "weekly", label: "Last 7 Days", badge: "7D" },
+  { value: "monthly", label: "Last 30 Days", badge: "30D" },
+  { value: "yearly", label: "Last 12 Months", badge: "1Y" },
+  { value: "all", label: "All Time", badge: "ALL" },
+];
+
 export default function AdminDashboardPage() {
   const [loading, setLoading] = useState(true);
+  const [kpiLoading, setKpiLoading] = useState(false);
+  const [period, setPeriod] = useState<DashboardPeriod>("monthly");
   const [adminUser, setAdminUser] = useState<UserProfile | null>(null);
   const [analyticsData, setAnalyticsData] =
     useState<DashboardAnalyticsResponse | null>(null);
   const [greeting, setGreeting] = useState<string>("Good day");
   const [storageStats, setStorageStats] = useState<PlatformStorageStats | null>(
     null,
+  );
+
+  const fetchKpisForPeriod = useCallback(
+    async (selectedPeriod: DashboardPeriod) => {
+      try {
+        setKpiLoading(true);
+        const res = await adminApi.getDashboardAnalytics(selectedPeriod);
+        setAnalyticsData(res);
+      } catch (err) {
+        console.error("Failed to filter dashboard KPIs:", err);
+      } finally {
+        setKpiLoading(false);
+      }
+    },
+    [],
   );
 
   useEffect(() => {
@@ -50,7 +83,7 @@ export default function AdminDashboardPage() {
       try {
         const [meRes, analyticsRes, storageRes] = await Promise.allSettled([
           apiClient.getMe(),
-          apiClient.getDashboardAnalytics(),
+          adminApi.getDashboardAnalytics("monthly"),
           vendorApi.getPlatformStorageStatsAdmin(),
         ]);
 
@@ -86,10 +119,25 @@ export default function AdminDashboardPage() {
     };
   }, []);
 
+  const handlePeriodChange = (nextPeriod: DashboardPeriod) => {
+    if (nextPeriod === period) return;
+    setPeriod(nextPeriod);
+    fetchKpisForPeriod(nextPeriod);
+  };
+
   const kpis: DashboardKPIs | undefined = analyticsData?.kpis;
   const adminName = adminUser?.firstName ? adminUser.firstName : "Admin";
+  const activeBadge =
+    PERIOD_OPTIONS.find((p) => p.value === period)?.badge || "30D";
 
   const renderGrowthBadge = (percentage?: number) => {
+    if (period === "all") {
+      return (
+        <span className="text-[11px] font-semibold text-[#76726E]">
+          Lifetime
+        </span>
+      );
+    }
     const value = percentage ?? 0;
     const isPositive = value >= 0;
     return (
@@ -141,8 +189,42 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
+      {/* Summary Period Filter Bar */}
+      <div className="flex flex-wrap items-center justify-between gap-3 bg-white px-4 py-3 rounded-lg border border-[#EAE8E4]">
+        <div className="flex items-center gap-2">
+          <span className="text-[11px] font-bold uppercase tracking-[0.15em] text-[#76726E]">
+            KPI Summary Window:
+          </span>
+          {kpiLoading && (
+            <LuRefreshCw className="w-3.5 h-3.5 animate-spin text-[#C4956A]" />
+          )}
+        </div>
+
+        <div className="flex flex-wrap gap-1.5">
+          {PERIOD_OPTIONS.map((opt) => (
+            <button
+              key={opt.value}
+              type="button"
+              disabled={kpiLoading}
+              onClick={() => handlePeriodChange(opt.value)}
+              className={`px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wider transition-colors cursor-pointer ${
+                period === opt.value
+                  ? "bg-[#171514] text-white"
+                  : "bg-[#FAF9F6] text-[#76726E] border border-[#EAE8E4] hover:text-[#1A1A1A]"
+              }`}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+      <div
+        className={`grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 transition-opacity ${
+          kpiLoading ? "opacity-60" : "opacity-100"
+        }`}
+      >
         {/* 1. Total Revenue */}
         <div className="bg-white p-6 rounded-lg border border-[#EAE8E4] flex flex-col justify-between h-36 shadow-xs">
           <div className="flex items-center justify-between">
@@ -153,10 +235,13 @@ export default function AdminDashboardPage() {
           </div>
           <div>
             <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#76726E]">
-              TOTAL REVENUE
+              TOTAL REVENUE ({activeBadge})
             </span>
             <p className="font-heading text-2xl font-bold text-[#1A1A1A]">
               ₦{Number(kpis?.totalRevenue || 0).toLocaleString()}
+            </p>
+            <p className="text-[11px] text-[#76726E] mt-0.5">
+              From {kpis?.paidOrders ?? 0} paid orders
             </p>
           </div>
         </div>
@@ -171,10 +256,19 @@ export default function AdminDashboardPage() {
           </div>
           <div>
             <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#76726E]">
-              ORDERS
+              ORDERS ({activeBadge})
             </span>
-            <p className="font-heading text-2xl font-bold text-[#1A1A1A]">
-              {kpis?.totalOrders ?? 0}
+            <div className="flex items-baseline gap-2">
+              <p className="font-heading text-2xl font-bold text-[#1A1A1A]">
+                {kpis?.totalOrders ?? 0}
+              </p>
+              <span className="text-xs font-semibold text-emerald-700">
+                ({kpis?.paidOrders ?? 0} paid)
+              </span>
+            </div>
+            <p className="text-[11px] text-[#76726E] mt-0.5">
+              {Math.max(0, (kpis?.totalOrders ?? 0) - (kpis?.paidOrders ?? 0))}{" "}
+              other / unpaid
             </p>
           </div>
         </div>
@@ -189,7 +283,7 @@ export default function AdminDashboardPage() {
           </div>
           <div>
             <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#76726E]">
-              CUSTOMERS
+              CUSTOMERS ({activeBadge})
             </span>
             <p className="font-heading text-2xl font-bold text-[#1A1A1A]">
               {kpis?.totalCustomers ?? 0}
@@ -207,7 +301,7 @@ export default function AdminDashboardPage() {
           </div>
           <div>
             <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-[#76726E]">
-              AVG ORDER VALUE
+              AVG ORDER VALUE ({activeBadge})
             </span>
             <p className="font-heading text-2xl font-bold text-[#1A1A1A]">
               ₦{Number(kpis?.avgOrderValue || 0).toLocaleString()}

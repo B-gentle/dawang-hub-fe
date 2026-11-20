@@ -1,10 +1,14 @@
 import { fetcher } from "./fetcher";
 
+export type DashboardPeriod = "weekly" | "monthly" | "yearly" | "all";
+
 export interface DashboardKPIs {
   totalRevenue: number;
   revenueGrowthPercentage: number;
   totalOrders: number;
   ordersGrowthPercentage: number;
+  paidOrders: number;
+  paidOrdersGrowthPercentage: number;
   totalCustomers: number;
   customersGrowthPercentage: number;
   avgOrderValue: number;
@@ -35,7 +39,7 @@ export interface InventoryAlerts {
 }
 
 export interface DashboardAnalyticsResponse {
-  period: string;
+  period: DashboardPeriod;
   kpis: DashboardKPIs;
   inventoryAlerts: InventoryAlerts;
 }
@@ -46,7 +50,7 @@ export interface RevenueDataPoint {
 }
 
 export interface RevenueOverviewResponse {
-  period: "weekly" | "monthly" | "yearly";
+  period: DashboardPeriod;
   comparedToPreviousPeriodPercentage: number;
   data: RevenueDataPoint[];
 }
@@ -60,10 +64,12 @@ export interface TopProductItem {
 }
 
 export const adminApi = {
-  getDashboardAnalytics: () =>
-    fetcher<DashboardAnalyticsResponse>("/admin/analytics/dashboard"),
+  getDashboardAnalytics: (period: DashboardPeriod = "monthly") =>
+    fetcher<DashboardAnalyticsResponse>(
+      `/admin/analytics/dashboard?period=${period}`,
+    ),
 
-  getRevenueOverview: (period: "weekly" | "monthly" | "yearly" = "monthly") =>
+  getRevenueOverview: (period: DashboardPeriod = "monthly") =>
     fetcher<RevenueOverviewResponse>(
       `/admin/analytics/revenue-overview?period=${period}`,
     ),

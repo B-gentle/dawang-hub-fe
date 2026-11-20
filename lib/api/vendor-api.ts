@@ -159,7 +159,35 @@ export interface VendorWithdrawalRecord {
   createdAt: string;
 }
 
+export interface LedgerPageMeta {
+  page: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface WalletLedgerPagination {
+  limit: number;
+  pending: LedgerPageMeta;
+  released: LedgerPageMeta;
+  withdrawals: LedgerPageMeta;
+}
+
+export interface VendorWalletLedgerQuery {
+  pendingPage?: number;
+  releasedPage?: number;
+  withdrawalsPage?: number;
+  limit?: number;
+}
+
 export interface VendorWalletResponse {
+  vendor?: {
+    id: string;
+    storeName: string;
+    slug: string;
+    status: VendorStatus;
+    ownerEmail: string | null;
+    ownerName: string | null;
+  };
   pendingBalance: number;
   withdrawableBalance: number;
   totalWithdrawn: number;
@@ -190,6 +218,90 @@ export interface VendorWalletResponse {
     createdAt: string;
   }>;
   withdrawals: VendorWithdrawalRecord[];
+  pagination?: WalletLedgerPagination;
+}
+
+export type PlatformTransactionTab =
+  "ALL" | "ESCROW" | "RELEASED" | "DISPUTED" | "WITHDRAWALS";
+
+export interface PlatformOrderLedgerItem {
+  type: "ORDER";
+  id: string;
+  vendorId: string | null;
+  vendorStoreName: string;
+  vendorSlug: string | null;
+  customerEmail: string | null;
+  totalAmount: number;
+  shippingFee: number;
+  vendorPayoutAmount: number;
+  grossCommission2Percent: number;
+  monnifyFee15Percent: number;
+  netProfit05Percent: number;
+  status: string;
+  escrowReleased: boolean;
+  confirmedAt: string | null;
+  createdAt: string;
+}
+
+export interface PlatformWithdrawalLedgerItem {
+  type: "WITHDRAWAL";
+  id: string;
+  reference: string;
+  vendorId: string;
+  vendorStoreName: string;
+  vendorSlug: string | null;
+  amount: number;
+  bankName: string;
+  accountNumber: string;
+  accountName: string;
+  status: "PENDING" | "SUCCESS" | "FAILED";
+  failureReason: string | null;
+  createdAt: string;
+}
+
+export type PlatformLedgerItem =
+  PlatformOrderLedgerItem | PlatformWithdrawalLedgerItem;
+
+export interface PlatformTransactionsResponse {
+  summary: {
+    paidOrdersCount: number;
+    grossCustomerVolume: number;
+    productBaseGmv: number;
+    totalShippingCollected: number;
+    totalVendorEarnings: number;
+    grossCommission2Percent: number;
+    monnifyFee15Percent: number;
+    netProfit05Percent: number;
+    escrowHeldTotal: number;
+    releasedToVendorsTotal: number;
+    totalDisbursedWithdrawals: number;
+    disbursedWithdrawalsCount: number;
+  };
+  topVendorsByProfit: Array<{
+    vendorId: string | null;
+    storeName: string;
+    slug: string | null;
+    orderCount: number;
+    grossVolume: number;
+    grossCommission2Percent: number;
+    monnifyFee15Percent: number;
+    netProfit05Percent: number;
+  }>;
+  monthlyBreakdown: Array<{
+    month: string;
+    orderCount: number;
+    grossVolume: number;
+    grossCommission2Percent: number;
+    monnifyFee15Percent: number;
+    netProfit05Percent: number;
+  }>;
+  items: PlatformLedgerItem[];
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export interface AdminVendorSummary extends VendorProfile {
@@ -224,6 +336,19 @@ export interface PlatformStorageStats {
     ownerEmail: string | null;
     storageUsedBytes: number;
   }>;
+}
+
+function buildWalletQueryString(query?: VendorWalletLedgerQuery): string {
+  if (!query) return "";
+  const params = new URLSearchParams();
+  if (query.pendingPage) params.set("pendingPage", String(query.pendingPage));
+  if (query.releasedPage)
+    params.set("releasedPage", String(query.releasedPage));
+  if (query.withdrawalsPage)
+    params.set("withdrawalsPage", String(query.withdrawalsPage));
+  if (query.limit) params.set("limit", String(query.limit));
+  const str = params.toString();
+  return str ? `?${str}` : "";
 }
 
 export const vendorApi = {
@@ -272,7 +397,34 @@ export const vendorApi = {
 
   getMyDashboard: () => fetcher<VendorDashboardStats>("/vendors/me/dashboard"),
 
-  getMyWallet: () => fetcher<VendorWalletResponse>("/vendors/me/wallet"),
+  getMyWallet: (query?: VendorWalletLedgerQuery) =>
+    fetcher<VendorWalletResponse>(
+      `/vendors/me/wallet${buildWalletQueryString(query)}`,
+    ),
+
+  getVendorWalletAdmin: (vendorId: string, query?: VendorWalletLedgerQuery) =>
+    fetcher<VendorWalletResponse>(
+      `/vendors/admin/${vendorId}/wallet${buildWalletQueryString(query)}`,
+    ),
+
+  getPlatformTransactionsAdmin: (query?: {
+    page?: number;
+    limit?: number;
+    tab?: PlatformTransactionTab;
+    vendorId?: string;
+    search?: string;
+  }) => {
+    const params = new URLSearchParams();
+    if (query?.page) params.set("page", String(query.page));
+    if (query?.limit) params.set("limit", String(query.limit));
+    if (query?.tab) params.set("tab", query.tab);
+    if (query?.vendorId) params.set("vendorId", query.vendorId);
+    if (query?.search?.trim()) params.set("search", query.search.trim());
+    const qs = params.toString();
+    return fetcher<PlatformTransactionsResponse>(
+      `/vendors/admin/platform-transactions${qs ? `?${qs}` : ""}`,
+    );
+  },
 
   verifyMyBvn: (bvn: string, consentAccepted: boolean) =>
     fetcher<VendorKycStatus>("/vendors/me/kyc/bvn", {

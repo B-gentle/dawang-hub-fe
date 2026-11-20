@@ -443,6 +443,12 @@ function AdminVendorsContent() {
 
                     <td className="py-4 px-4 text-right">
                       <div className="inline-flex items-center gap-2">
+                        <Link
+                          href={`/admin/vendors/${vendor.id}/transactions`}
+                          className="px-3 py-1.5 bg-white border border-[#EAE8E4] rounded-md text-[11px] font-bold uppercase tracking-wider text-[#76726E] hover:border-[#C4956A] hover:text-[#151413] transition-colors"
+                        >
+                          Ledger
+                        </Link>
                         <button
                           onClick={() => openVendorDrawer(vendor)}
                           className="px-3 py-1.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[11px] font-bold uppercase tracking-wider text-[#151413] hover:bg-[#151413] hover:text-white transition-colors cursor-pointer"
@@ -668,6 +674,13 @@ function AdminVendorsContent() {
                   View Orders ({selectedVendor.orderCount ?? 0})
                 </Link>
               </div>
+
+              <Link
+                href={`/admin/vendors/${selectedVendor.id}/transactions`}
+                className="py-2.5 px-3 bg-[#151413] text-white rounded-md text-xs font-bold uppercase tracking-wider text-center hover:bg-[#2A2725] transition-colors"
+              >
+                View Vendor Ledger &amp; Payout History
+              </Link>
             </div>
 
             {/* Approve / Suspend Actions */}
