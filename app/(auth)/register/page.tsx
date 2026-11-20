@@ -2,14 +2,20 @@
 
 import { Suspense, useState } from "react";
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
-import { FiUser, FiMail, FiLock, FiArrowRight, FiShield } from "react-icons/fi";
+import { useSearchParams } from "next/navigation";
+import {
+  FiUser,
+  FiMail,
+  FiLock,
+  FiArrowRight,
+  FiShield,
+  FiLoader,
+} from "react-icons/fi";
 import { toast } from "sonner";
 import { authApi, RegisterInput } from "@/lib/api/auth-api";
 import { getSafeRedirect, withRedirect } from "@/lib/utils/redirect";
 
 function RegisterForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const requestedRedirect = getSafeRedirect(searchParams.get("redirect"), "");
   const redirect = requestedRedirect || "/account";
@@ -24,6 +30,7 @@ function RegisterForm() {
 
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [redirecting, setRedirecting] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -32,6 +39,8 @@ function RegisterForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+
+    if (loading || redirecting) return;
 
     if (formData.password.length < 6) {
       toast.error("Password must be at least 6 characters long");
@@ -48,9 +57,20 @@ function RegisterForm() {
     try {
       setLoading(true);
       await authApi.register(formData);
-      toast.success("Account created successfully!");
-      router.push(redirect);
-      router.refresh();
+
+      setLoading(false);
+      setRedirecting(true);
+
+      toast.success(
+        isVendorSignup
+          ? "Account created! Redirecting to store setup..."
+          : "Account created! Redirecting to your account...",
+      );
+
+      // Full navigation ensures proxy.ts receives the newly set auth cookie immediately
+      window.setTimeout(() => {
+        window.location.assign(redirect);
+      }, 300);
     } catch (err: unknown) {
       console.error("Registration error:", err);
       const errorMessage =
@@ -58,14 +78,30 @@ function RegisterForm() {
           ? err.message
           : "Registration failed. Please try again.";
       toast.error(errorMessage);
-    } finally {
       setLoading(false);
+      setRedirecting(false);
     }
   };
 
+  const isBusy = loading || redirecting;
+
   return (
     <div className="min-h-[80vh] bg-white font-sans text-[#151413] flex items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md bg-[#FAF9F6] border border-[#EAE8E4] rounded-lg p-6 sm:p-8 shadow-xs">
+      <div className="relative w-full max-w-md bg-[#FAF9F6] border border-[#EAE8E4] rounded-lg p-6 sm:p-8 shadow-xs overflow-hidden">
+        {redirecting && (
+          <div className="absolute inset-0 z-10 bg-[#FAF9F6]/90 backdrop-blur-[1px] flex flex-col items-center justify-center gap-3 p-6 text-center">
+            <FiLoader className="w-7 h-7 animate-spin text-[#C4956A]" />
+            <p className="font-heading text-base font-bold uppercase tracking-wide text-[#151413]">
+              {isVendorSignup
+                ? "Opening Vendor Store Setup..."
+                : "Taking You to Your Account..."}
+            </p>
+            <p className="text-xs text-[#76726E]">
+              Please wait a moment while we prepare your workspace.
+            </p>
+          </div>
+        )}
+
         <div className="flex flex-col items-center text-center gap-2 mb-8">
           <span className="text-[10px] font-bold text-[#C4956A] uppercase tracking-[0.25em]">
             GlobexMall
@@ -91,10 +127,11 @@ function RegisterForm() {
                   type="text"
                   name="firstName"
                   required
+                  disabled={isBusy}
                   value={formData.firstName}
                   onChange={handleChange}
                   placeholder="John"
-                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A]"
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A] disabled:opacity-60"
                 />
                 <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
               </div>
@@ -109,10 +146,11 @@ function RegisterForm() {
                   type="text"
                   name="lastName"
                   required
+                  disabled={isBusy}
                   value={formData.lastName}
                   onChange={handleChange}
                   placeholder="Doe"
-                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A]"
+                  className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A] disabled:opacity-60"
                 />
                 <FiUser className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
               </div>
@@ -128,10 +166,11 @@ function RegisterForm() {
                 type="email"
                 name="email"
                 required
+                disabled={isBusy}
                 value={formData.email}
                 onChange={handleChange}
                 placeholder="john.doe@example.com"
-                className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A]"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A] disabled:opacity-60"
               />
               <FiMail className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
             </div>
@@ -147,10 +186,11 @@ function RegisterForm() {
                 name="password"
                 required
                 minLength={6}
+                disabled={isBusy}
                 value={formData.password}
                 onChange={handleChange}
                 placeholder="At least 6 characters"
-                className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A]"
+                className="w-full pl-9 pr-3 py-2.5 bg-white border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A] disabled:opacity-60"
               />
               <FiLock className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
             </div>
@@ -160,6 +200,7 @@ function RegisterForm() {
             <input
               type="checkbox"
               required
+              disabled={isBusy}
               checked={termsAccepted}
               onChange={(e) => setTermsAccepted(e.target.checked)}
               className="mt-0.5 w-3.5 h-3.5 accent-[#C4956A] rounded-xs cursor-pointer shrink-0"
@@ -196,11 +237,26 @@ function RegisterForm() {
 
           <button
             type="submit"
-            disabled={loading || !termsAccepted}
+            disabled={isBusy || !termsAccepted}
             className="mt-2 w-full py-3.5 bg-[#151413] text-white text-xs font-bold uppercase tracking-widest rounded-md hover:bg-[#2A2725] transition-colors flex items-center justify-center gap-2 cursor-pointer disabled:bg-[#A39E98] disabled:cursor-not-allowed"
           >
-            {loading ? "Creating Account..." : "Register Now"}{" "}
-            <FiArrowRight className="w-4 h-4" />
+            {redirecting ? (
+              <>
+                <FiLoader className="w-4 h-4 animate-spin" />
+                {isVendorSignup
+                  ? "Redirecting to Store Setup..."
+                  : "Redirecting..."}
+              </>
+            ) : loading ? (
+              <>
+                <FiLoader className="w-4 h-4 animate-spin" />
+                Creating Account...
+              </>
+            ) : (
+              <>
+                Register Now <FiArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
         </form>
 
