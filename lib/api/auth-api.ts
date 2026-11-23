@@ -26,13 +26,29 @@ export interface AuthResponse {
   accessToken: string;
 }
 
+function getCookieDomain(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  const rootDomain = (process.env.NEXT_PUBLIC_ROOT_DOMAIN || "globexmall.com")
+    .split(":")[0]
+    .toLowerCase()
+    .trim();
+  const hostname = window.location.hostname.toLowerCase();
+
+  if (hostname === rootDomain || hostname.endsWith(`.${rootDomain}`)) {
+    return `.${rootDomain}`;
+  }
+  return undefined;
+}
+
 function setAuthCookie(token?: string) {
   if (!token) return;
+  const domain = getCookieDomain();
   Cookies.set(TOKEN_COOKIE_NAME, token, {
     expires: 7,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",
     path: "/",
+    ...(domain ? { domain } : {}),
   });
 }
 
@@ -72,6 +88,10 @@ export const authApi = {
   getMe: () => fetcher<UserProfile>("/auth/me"),
 
   logout: () => {
+    const domain = getCookieDomain();
     Cookies.remove(TOKEN_COOKIE_NAME, { path: "/" });
+    if (domain) {
+      Cookies.remove(TOKEN_COOKIE_NAME, { path: "/", domain });
+    }
   },
 };
