@@ -322,7 +322,8 @@ const Footer = ({ vendorId, initialConfig, categoryLinks }: FooterProps) => {
       >
         <div className="max-w-7xl mx-auto px-6 py-6 flex flex-col md:flex-row justify-between items-center gap-4 text-[10px] tracking-widest text-[#76726E] uppercase">
           <div>
-            © {currentYear} {sysConfig.siteName}. ALL RIGHTS RESERVED.
+            © {currentYear} {sysConfig.siteName} Powered by Betime Technologies
+            Limited. ALL RIGHTS RESERVED.
           </div>
           <div className="flex gap-4 md:gap-6 items-center">
             <Link
