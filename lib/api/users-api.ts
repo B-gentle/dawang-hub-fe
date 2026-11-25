@@ -41,6 +41,12 @@ export interface AdminUpdateUserPayload {
   isActive?: boolean;
 }
 
+export interface AdminDeleteUserResponse {
+  deleted: boolean;
+  vendorDeleted: boolean;
+  message: string;
+}
+
 export const usersApi = {
   updateProfile: (data: UpdateProfilePayload) =>
     fetcher("/users/profile", {
@@ -89,5 +95,10 @@ export const usersApi = {
     fetcher<UserAccount>(`/users/admin/${userId}`, {
       method: "PATCH",
       body: JSON.stringify(payload),
+    }),
+
+  adminDeleteUser: (userId: string) =>
+    fetcher<AdminDeleteUserResponse>(`/users/admin/${userId}`, {
+      method: "DELETE",
     }),
 };

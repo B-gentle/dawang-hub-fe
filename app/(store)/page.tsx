@@ -85,7 +85,7 @@ export default function HomePage() {
       <section id="new-arrivals" className="scroll-mt-20">
         <ProductGrid
           title="New Arrivals"
-          subtitle="The latest additions to the Dawang catalog"
+          subtitle="The latest additions to the Globexmall catalog"
           products={newArrivals}
           loading={loading}
           viewAllHref="/shop"

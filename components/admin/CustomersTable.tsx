@@ -10,6 +10,7 @@ import {
   LuUserX,
   LuUserCheck,
   LuEye,
+  LuTrash2,
 } from "react-icons/lu";
 import { UserAccount } from "@/lib/api/users-api";
 
@@ -17,6 +18,7 @@ interface CustomersTableProps {
   loading: boolean;
   error: string | null;
   users: UserAccount[];
+  deletingUserId?: string | null;
   onRetry: () => void;
   onResetFilters: () => void;
   onRoleChange: (
@@ -25,17 +27,20 @@ interface CustomersTableProps {
   ) => void;
   onStatusToggle: (userId: string, currentStatus: boolean) => void;
   onSelectUser: (user: UserAccount) => void;
+  onDeleteUser: (user: UserAccount) => void;
 }
 
 export default function CustomersTable({
   loading,
   error,
   users,
+  deletingUserId,
   onRetry,
   onResetFilters,
   onRoleChange,
   onStatusToggle,
   onSelectUser,
+  onDeleteUser,
 }: CustomersTableProps) {
   return (
     <div className="bg-white rounded-lg border border-[#EAE8E4] overflow-hidden shadow-xs">
@@ -82,132 +87,150 @@ export default function CustomersTable({
               </tr>
             </thead>
             <tbody className="divide-y divide-[#EAE8E4] text-xs">
-              {users.map((user) => (
-                <tr
-                  key={user.id}
-                  onClick={() => onSelectUser(user)}
-                  className="hover:bg-[#FAF9F6] transition-colors cursor-pointer"
-                >
-                  {/* User Name */}
-                  <td className="py-3.5 px-4 font-semibold text-[#1A1A1A]">
-                    <div className="flex flex-col">
-                      <span>
-                        {user.firstName || user.lastName
-                          ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
-                          : "Unnamed Customer"}
-                      </span>
-                      {user.phoneNumber && (
-                        <span className="text-[10px] font-normal text-[#76726E]">
-                          {user.phoneNumber}
-                        </span>
-                      )}
-                    </div>
-                  </td>
+              {users.map((user) => {
+                const isDeleting = deletingUserId === user.id;
 
-                  {/* Email */}
-                  <td className="py-3.5 px-4 font-mono text-[#76726E]">
-                    <span className="flex items-center gap-1.5">
-                      <LuMail className="w-3.5 h-3.5 text-[#A39E98]" />
-                      {user.email}
-                    </span>
-                  </td>
-
-                  {/* Role Badge */}
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                        user.role === "admin"
-                          ? "bg-[#171514] text-white"
-                          : "bg-[#FAF5EF] text-[#C4956A] border border-[#EAE8E4]"
-                      }`}
-                    >
-                      {user.role === "admin" ? (
-                        <LuShieldCheck className="w-3 h-3 text-[#C4956A]" />
-                      ) : (
-                        <LuUsers className="w-3 h-3 text-[#76726E]" />
-                      )}
-                      {user.role}
-                    </span>
-                  </td>
-
-                  {/* Status Badge */}
-                  <td className="py-3.5 px-4">
-                    <span
-                      className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                        user.isActive
-                          ? "bg-emerald-50 text-emerald-700"
-                          : "bg-rose-50 text-rose-700"
-                      }`}
-                    >
-                      {user.isActive ? "Active" : "Suspended"}
-                    </span>
-                  </td>
-
-                  {/* Registration Date */}
-                  <td className="py-3.5 px-4 text-[#76726E]">
-                    {user.createdAt
-                      ? new Date(user.createdAt).toLocaleDateString()
-                      : "N/A"}
-                  </td>
-
-                  {/* Actions */}
-                  <td
-                    className="py-3.5 px-4 text-right"
-                    onClick={(e) => e.stopPropagation()}
+                return (
+                  <tr
+                    key={user.id}
+                    onClick={() => onSelectUser(user)}
+                    className="hover:bg-[#FAF9F6] transition-colors cursor-pointer"
                   >
-                    <div className="flex justify-end items-center gap-2">
-                      {/* View / Edit Drawer Button */}
-                      <button
-                        type="button"
-                        onClick={() => onSelectUser(user)}
-                        className="px-2.5 py-1 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[10px] font-bold uppercase tracking-wider text-[#1A1A1A] hover:border-[#C4956A] transition-colors cursor-pointer flex items-center gap-1"
-                      >
-                        <LuEye className="w-3 h-3 text-[#C4956A]" /> View / Edit
-                      </button>
-
-                      {/* Role Change Toggle */}
-                      <button
-                        type="button"
-                        onClick={() => onRoleChange(user.id, user.role)}
-                        className="px-2.5 py-1 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[10px] font-bold uppercase tracking-wider text-[#1A1A1A] hover:border-[#C4956A] transition-colors cursor-pointer flex items-center gap-1"
-                      >
-                        {user.role === "admin" ? (
-                          <>
-                            <LuShieldAlert className="w-3 h-3 text-amber-600" />{" "}
-                            Demote
-                          </>
-                        ) : (
-                          <>
-                            <LuShieldCheck className="w-3 h-3 text-[#C4956A]" />{" "}
-                            Promote
-                          </>
+                    {/* User Name */}
+                    <td className="py-3.5 px-4 font-semibold text-[#1A1A1A]">
+                      <div className="flex flex-col">
+                        <span>
+                          {user.firstName || user.lastName
+                            ? `${user.firstName || ""} ${user.lastName || ""}`.trim()
+                            : "Unnamed Customer"}
+                        </span>
+                        {user.phoneNumber && (
+                          <span className="text-[10px] font-normal text-[#76726E]">
+                            {user.phoneNumber}
+                          </span>
                         )}
-                      </button>
+                      </div>
+                    </td>
 
-                      {/* Status Toggle */}
-                      <button
-                        type="button"
-                        onClick={() => onStatusToggle(user.id, user.isActive)}
-                        className={`px-2.5 py-1 border rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1 ${
-                          user.isActive
-                            ? "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
-                            : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                    {/* Email */}
+                    <td className="py-3.5 px-4 font-mono text-[#76726E]">
+                      <span className="flex items-center gap-1.5">
+                        <LuMail className="w-3.5 h-3.5 text-[#A39E98]" />
+                        {user.email}
+                      </span>
+                    </td>
+
+                    {/* Role Badge */}
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          user.role === "admin"
+                            ? "bg-[#171514] text-white"
+                            : "bg-[#FAF5EF] text-[#C4956A] border border-[#EAE8E4]"
                         }`}
                       >
-                        {user.isActive ? (
-                          <>
-                            <LuUserX className="w-3 h-3" /> Suspend
-                          </>
+                        {user.role === "admin" ? (
+                          <LuShieldCheck className="w-3 h-3 text-[#C4956A]" />
                         ) : (
-                          <>
-                            <LuUserCheck className="w-3 h-3" /> Activate
-                          </>
+                          <LuUsers className="w-3 h-3 text-[#76726E]" />
                         )}
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                        {user.role}
+                      </span>
+                    </td>
+
+                    {/* Status Badge */}
+                    <td className="py-3.5 px-4">
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          user.isActive
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-rose-50 text-rose-700"
+                        }`}
+                      >
+                        {user.isActive ? "Active" : "Suspended"}
+                      </span>
+                    </td>
+
+                    {/* Registration Date */}
+                    <td className="py-3.5 px-4 text-[#76726E]">
+                      {user.createdAt
+                        ? new Date(user.createdAt).toLocaleDateString()
+                        : "N/A"}
+                    </td>
+
+                    {/* Actions */}
+                    <td
+                      className="py-3.5 px-4 text-right"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      <div className="flex justify-end items-center gap-2">
+                        {/* View / Edit Drawer Button */}
+                        <button
+                          type="button"
+                          onClick={() => onSelectUser(user)}
+                          className="px-2.5 py-1 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[10px] font-bold uppercase tracking-wider text-[#1A1A1A] hover:border-[#C4956A] transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          <LuEye className="w-3 h-3 text-[#C4956A]" /> View /
+                          Edit
+                        </button>
+
+                        {/* Role Change Toggle */}
+                        <button
+                          type="button"
+                          onClick={() => onRoleChange(user.id, user.role)}
+                          className="px-2.5 py-1 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[10px] font-bold uppercase tracking-wider text-[#1A1A1A] hover:border-[#C4956A] transition-colors cursor-pointer flex items-center gap-1"
+                        >
+                          {user.role === "admin" ? (
+                            <>
+                              <LuShieldAlert className="w-3 h-3 text-amber-600" />{" "}
+                              Demote
+                            </>
+                          ) : (
+                            <>
+                              <LuShieldCheck className="w-3 h-3 text-[#C4956A]" />{" "}
+                              Promote
+                            </>
+                          )}
+                        </button>
+
+                        {/* Status Toggle */}
+                        <button
+                          type="button"
+                          onClick={() => onStatusToggle(user.id, user.isActive)}
+                          className={`px-2.5 py-1 border rounded-md text-[10px] font-bold uppercase tracking-wider transition-colors cursor-pointer flex items-center gap-1 ${
+                            user.isActive
+                              ? "bg-rose-50 border-rose-200 text-rose-700 hover:bg-rose-100"
+                              : "bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100"
+                          }`}
+                        >
+                          {user.isActive ? (
+                            <>
+                              <LuUserX className="w-3 h-3" /> Suspend
+                            </>
+                          ) : (
+                            <>
+                              <LuUserCheck className="w-3 h-3" /> Activate
+                            </>
+                          )}
+                        </button>
+
+                        {/* Permanent Delete Button (non-admin accounts) */}
+                        {user.role !== "admin" && (
+                          <button
+                            type="button"
+                            disabled={isDeleting}
+                            onClick={() => onDeleteUser(user)}
+                            className="px-2.5 py-1 bg-rose-600 border border-rose-600 text-white rounded-md text-[10px] font-bold uppercase tracking-wider hover:bg-rose-700 transition-colors cursor-pointer flex items-center gap-1 disabled:opacity-50"
+                          >
+                            <LuTrash2 className="w-3 h-3" />
+                            {isDeleting ? "Deleting..." : "Delete"}
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>

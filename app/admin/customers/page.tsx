@@ -4,7 +4,7 @@ import { useEffect, useState, useMemo } from "react";
 import { LuSearch, LuX, LuRefreshCw } from "react-icons/lu";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { UserAccount } from "@/lib/api/users-api";
+import { usersApi, UserAccount } from "@/lib/api/users-api";
 import { vendorApi, VendorProfile } from "@/lib/api/vendor-api";
 import { ordersApi, OrderResponse } from "@/lib/api/orders-api";
 import CustomersTable from "@/components/admin/CustomersTable";
@@ -17,12 +17,13 @@ export default function AdminCustomersPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [selectedUser, setSelectedUser] = useState<UserAccount | null>(null);
+  const [deletingUserId, setDeletingUserId] = useState<string | null>(null);
 
   // Search & Filter state
   const [searchQuery, setSearchQuery] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | "admin" | "customer">(
-    "all",
-  );
+  const [roleFilter, setRoleFilter] = useState<
+    "all" | "admin" | "customer" | "vendor"
+  >("all");
   const [statusFilter, setStatusFilter] = useState<
     "all" | "active" | "suspended"
   >("all");
@@ -142,6 +143,36 @@ export default function AdminCustomersPage() {
     });
   };
 
+  const handleDeleteUser = async (targetUser: UserAccount) => {
+    const linkedVendor = vendors.find((v) => v.userId === targetUser.id);
+    const isVendor = targetUser.role === "vendor" || Boolean(linkedVendor);
+
+    const warningMessage = isVendor
+      ? `PERMANENT DELETION WARNING:\n\nDeleting "${targetUser.email}" will ALSO permanently delete their vendor storefront${linkedVendor ? ` ("${linkedVendor.storeName}")` : ""}, all listed products, and all uploaded Cloudinary media.\n\nThis action cannot be undone. Proceed?`
+      : `Are you sure you want to permanently delete "${targetUser.email}"?\n\nAll saved addresses and profile data will be removed. Historical order records will remain anonymized. This cannot be undone.`;
+
+    if (!confirm(warningMessage)) return;
+
+    try {
+      setDeletingUserId(targetUser.id);
+      const res = await usersApi.adminDeleteUser(targetUser.id);
+
+      setUsers((prev) => prev.filter((u) => u.id !== targetUser.id));
+      if (res.vendorDeleted) {
+        setVendors((prev) => prev.filter((v) => v.userId !== targetUser.id));
+      }
+      setSelectedUser((prev) => (prev?.id === targetUser.id ? null : prev));
+
+      toast.success(res.message || "User account permanently deleted");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to delete user account",
+      );
+    } finally {
+      setDeletingUserId(null);
+    }
+  };
+
   const handleResetFilters = () => {
     setSearchQuery("");
     setRoleFilter("all");
@@ -249,12 +280,15 @@ export default function AdminCustomersPage() {
           <select
             value={roleFilter}
             onChange={(e) =>
-              setRoleFilter(e.target.value as "all" | "admin" | "customer")
+              setRoleFilter(
+                e.target.value as "all" | "admin" | "customer" | "vendor",
+              )
             }
             className="p-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs font-semibold text-[#1A1A1A] focus:outline-hidden focus:border-[#C4956A] cursor-pointer"
           >
             <option value="all">All Roles</option>
             <option value="customer">Customers</option>
+            <option value="vendor">Vendors</option>
             <option value="admin">Admins</option>
           </select>
 
@@ -276,15 +310,18 @@ export default function AdminCustomersPage() {
         loading={loading}
         error={error}
         users={filteredUsers}
+        deletingUserId={deletingUserId}
         onRetry={loadUsers}
         onResetFilters={handleResetFilters}
         onRoleChange={handleRoleChange}
         onStatusToggle={handleStatusToggle}
         onSelectUser={(user) => setSelectedUser(user)}
+        onDeleteUser={handleDeleteUser}
       />
 
       <UserDetailsDrawer
         user={selectedUser}
+        deletingUserId={deletingUserId}
         onClose={() => setSelectedUser(null)}
         onUserUpdated={(updated) => {
           setUsers((prev) =>
@@ -292,6 +329,7 @@ export default function AdminCustomersPage() {
           );
           setSelectedUser(updated);
         }}
+        onDeleteUser={handleDeleteUser}
       />
     </div>
   );

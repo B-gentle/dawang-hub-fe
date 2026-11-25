@@ -11,26 +11,33 @@ import {
   LuPencil,
   LuCheck,
   LuRefreshCw,
+  LuTrash2,
 } from "react-icons/lu";
 import { toast } from "sonner";
 import { usersApi, UserAccount, UserAccountDetails } from "@/lib/api/users-api";
 
 interface UserDetailsDrawerProps {
   user: UserAccount | null;
+  deletingUserId?: string | null;
   onClose: () => void;
   onUserUpdated: (updated: UserAccount) => void;
+  onDeleteUser: (user: UserAccount) => void;
 }
 
 interface UserDetailsDrawerContentProps {
   user: UserAccount;
+  deletingUserId?: string | null;
   onClose: () => void;
   onUserUpdated: (updated: UserAccount) => void;
+  onDeleteUser: (user: UserAccount) => void;
 }
 
 function UserDetailsDrawerContent({
   user,
+  deletingUserId,
   onClose,
   onUserUpdated,
+  onDeleteUser,
 }: UserDetailsDrawerContentProps) {
   const [details, setDetails] = useState<UserAccountDetails>(user);
   const [loadingDetails, setLoadingDetails] = useState(true);
@@ -94,6 +101,8 @@ function UserDetailsDrawerContent({
     }
   };
 
+  const isDeleting = deletingUserId === details.id;
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end font-sans text-[#1A1A1A]">
       <div
@@ -107,7 +116,9 @@ function UserDetailsDrawerContent({
           <div className="flex items-start justify-between pb-4 border-b border-[#EAE8E4]">
             <div>
               <span className="text-[10px] font-bold uppercase tracking-[0.15em] text-[#C4956A]">
-                CUSTOMER PROFILE
+                {details.role === "vendor"
+                  ? "VENDOR USER PROFILE"
+                  : "CUSTOMER PROFILE"}
               </span>
               <h3 className="font-heading text-lg font-bold text-[#1A1A1A] mt-0.5">
                 {details.firstName} {details.lastName}
@@ -330,9 +341,9 @@ function UserDetailsDrawerContent({
         </div>
 
         {/* Footer Actions */}
-        <div className="pt-4 border-t border-[#EAE8E4] flex items-center gap-2.5 mt-6">
+        <div className="pt-4 border-t border-[#EAE8E4] flex flex-col gap-2.5 mt-6">
           {isEditing ? (
-            <>
+            <div className="flex items-center gap-2.5">
               <button
                 type="button"
                 disabled={saving}
@@ -350,15 +361,33 @@ function UserDetailsDrawerContent({
                 <LuCheck className="w-3.5 h-3.5 text-[#C4956A]" />
                 {saving ? "Saving..." : "Save Changes"}
               </button>
-            </>
+            </div>
           ) : (
-            <button
-              type="button"
-              onClick={() => setIsEditing(true)}
-              className="w-full py-3 bg-[#1A1A1A] text-white rounded-md text-xs font-bold uppercase tracking-widest hover:bg-[#2A2725] transition-colors cursor-pointer"
-            >
-              Edit User Info
-            </button>
+            <>
+              <button
+                type="button"
+                onClick={() => setIsEditing(true)}
+                className="w-full py-3 bg-[#1A1A1A] text-white rounded-md text-xs font-bold uppercase tracking-widest hover:bg-[#2A2725] transition-colors cursor-pointer"
+              >
+                Edit User Info
+              </button>
+
+              {details.role !== "admin" && (
+                <button
+                  type="button"
+                  disabled={isDeleting}
+                  onClick={() => onDeleteUser(details)}
+                  className="w-full py-2.5 bg-rose-50 border border-rose-200 text-rose-700 rounded-md text-xs font-bold uppercase tracking-widest hover:bg-rose-100 transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  <LuTrash2 className="w-3.5 h-3.5" />
+                  {isDeleting
+                    ? "Deleting Account..."
+                    : details.role === "vendor"
+                      ? "Delete User & Storefront"
+                      : "Delete User Account"}
+                </button>
+              )}
+            </>
           )}
         </div>
       </div>
@@ -368,8 +397,10 @@ function UserDetailsDrawerContent({
 
 export default function UserDetailsDrawer({
   user,
+  deletingUserId,
   onClose,
   onUserUpdated,
+  onDeleteUser,
 }: UserDetailsDrawerProps) {
   if (!user) return null;
 
@@ -377,8 +408,10 @@ export default function UserDetailsDrawer({
     <UserDetailsDrawerContent
       key={user.id}
       user={user}
+      deletingUserId={deletingUserId}
       onClose={onClose}
       onUserUpdated={onUserUpdated}
+      onDeleteUser={onDeleteUser}
     />
   );
 }
