@@ -43,14 +43,35 @@ export const paymentsApi = {
       `/payments/resolve-account?accountNumber=${encodeURIComponent(accountNumber)}&bankCode=${encodeURIComponent(bankCode)}`,
     ),
 
-  initializeMonnify: (payload: InitializeMonnifyPayload) =>
-    fetcher<InitializeMonnifyResponse>("/payments/monnify/initialize", {
+  initializeMonnify: (payload: InitializeMonnifyPayload) => {
+    if (payload.reason === "ORDER_CHECKOUT" && payload.orderId) {
+      return fetcher<InitializeMonnifyResponse>(
+        `/payments/monnify/initialize/${encodeURIComponent(payload.orderId)}`,
+        {
+          method: "POST",
+        },
+      );
+    }
+
+    return fetcher<InitializeMonnifyResponse>("/payments/monnify/initialize", {
       method: "POST",
       body: JSON.stringify(payload),
-    }),
+    });
+  },
 
-  verifyMonnify: (paymentReference: string) =>
-    fetcher<VerifyMonnifyResponse>(
-      `/payments/monnify/verify?paymentReference=${encodeURIComponent(paymentReference)}`,
-    ),
+  verifyMonnify: (params: {
+    paymentReference?: string;
+    transactionReference?: string;
+  }) => {
+    const query = new URLSearchParams();
+    if (params.paymentReference) {
+      query.set("paymentReference", params.paymentReference);
+    }
+    if (params.transactionReference) {
+      query.set("transactionReference", params.transactionReference);
+    }
+    return fetcher<VerifyMonnifyResponse>(
+      `/payments/monnify/verify?${query.toString()}`,
+    );
+  },
 };

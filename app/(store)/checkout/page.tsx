@@ -10,7 +10,7 @@ import CheckoutForm, {
   ShippingAddressData,
 } from "@/components/checkout/CheckoutForm";
 import OrderSummaryCard from "@/components/checkout/OrderSummaryCard";
-import { apiClient } from "@/lib/api-client";
+import { apiClient, paymentsApi } from "@/lib/api-client";
 import { UserProfile } from "@/lib/api/auth-api";
 import { AddressPayload } from "@/lib/api/users-api";
 import { vendorApi } from "@/lib/api/vendor-api";
@@ -254,12 +254,15 @@ export default function CheckoutPage() {
       }
 
       toast.info("Connecting to payment gateway...");
-      const paymentData = await apiClient.initializePayment(order.id);
+      const paymentData = await paymentsApi.initializeMonnify({
+        reason: "ORDER_CHECKOUT",
+        orderId: order.id,
+      });
 
-      if (paymentData?.authorization_url) {
+      if (paymentData?.checkoutUrl) {
         await clearCart();
         toast.success("Redirecting to secure checkout...");
-        window.location.href = paymentData.authorization_url;
+        window.location.href = paymentData.checkoutUrl;
       } else {
         throw new Error("Could not initialize payment gateway.");
       }
