@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { FiCheckCircle, FiXCircle, FiRefreshCw } from "react-icons/fi";
 import { paymentsApi, PaymentReason } from "@/lib/api/payments-api";
+import { useCart } from "@/context/CartContext";
 
 const DRAFT_STORAGE_KEY = "dawang_vendor_setup_draft";
 
@@ -17,6 +18,7 @@ function VerifierContent({
 }: MonnifyCallbackVerifierProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const { clearCart } = useCart();
 
   const paymentReference =
     searchParams.get("paymentReference") ||
@@ -48,7 +50,7 @@ function VerifierContent({
 
     paymentsApi
       .verifyMonnify({ paymentReference, transactionReference })
-      .then((res) => {
+      .then(async (res) => {
         const flow = res.reason || inferredFlow;
         setResolvedReason(flow);
 
@@ -56,7 +58,9 @@ function VerifierContent({
           setVerified(true);
           if (res.orderId) setOrderId(res.orderId);
 
-          if (flow === "VENDOR_SETUP") {
+          if (flow === "ORDER_CHECKOUT") {
+            await clearCart();
+          } else if (flow === "VENDOR_SETUP") {
             sessionStorage.removeItem(DRAFT_STORAGE_KEY);
             setTimeout(() => {
               router.refresh();
@@ -81,7 +85,14 @@ function VerifierContent({
       .finally(() => {
         setIsVerifying(false);
       });
-  }, [hasRef, paymentReference, transactionReference, inferredFlow, router]);
+  }, [
+    hasRef,
+    paymentReference,
+    transactionReference,
+    inferredFlow,
+    router,
+    clearCart,
+  ]);
 
   if (hasRef && isVerifying) {
     return (

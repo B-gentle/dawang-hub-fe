@@ -38,7 +38,7 @@ interface CartContextType {
     productId: string,
     options: { selectedSize?: string; selectedColor?: string },
   ) => void;
-  clearCart: () => void;
+  clearCart: () => Promise<void>;
   subtotal: number;
   totalItems: number;
   syncing: boolean;
@@ -46,10 +46,22 @@ interface CartContextType {
 }
 
 const CART_STORAGE_KEY = "dawang_cart";
+const CART_SYNCED_FLAG_KEY = "dawang_cart_server_synced";
 const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
+
+function isValidCartItem(item: CartItem | null | undefined): item is CartItem {
+  return Boolean(
+    item &&
+    item.product &&
+    item.product.id &&
+    item.product.name &&
+    item.product.name !== "Product" &&
+    Number(item.product.price) > 0,
+  );
+}
 
 export const CartProvider = ({ children }: { children: React.ReactNode }) => {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -64,15 +76,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       if (localData) {
         const parsed = JSON.parse(localData);
         if (Array.isArray(parsed)) {
-          const validLocal = parsed.filter(
-            (item: CartItem) =>
-              item &&
-              item.product &&
-              item.product.id &&
-              item.product.name &&
-              item.product.name !== "Product" &&
-              Number(item.product.price) > 0,
-          );
+          const validLocal = parsed.filter(isValidCartItem);
           queueMicrotask(() => {
             setCart(validLocal);
           });
@@ -99,10 +103,13 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
       setSyncing(true);
 
       let remoteItems: CartApiItem[] = [];
+      let fetchSucceeded = false;
+
       try {
         const res = await apiClient.getCart();
         if (res && Array.isArray(res.items)) {
           remoteItems = res.items;
+          fetchSucceeded = true;
         }
       } catch (err: unknown) {
         const errObj = err as { message?: string; status?: number };
@@ -115,46 +122,98 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
         }
       }
 
-      const mergedMap = new Map<string, CartItem>();
+      if (!fetchSucceeded) return;
 
-      localItems.forEach((local) => {
-        if (local?.product?.id) {
-          mergedMap.set(local.product.id, local);
+      const wasPreviouslySynced =
+        localStorage.getItem(CART_SYNCED_FLAG_KEY) === "true";
+
+      // If the server cart is now empty and local items came from a previously synced session
+      // (or already carry server item IDs), the server cleared the cart (e.g. via Monnify webhook).
+      if (remoteItems.length === 0) {
+        const hasUnsyncedGuestItems =
+          !wasPreviouslySynced && localItems.some((item) => !item.id);
+
+        if (!hasUnsyncedGuestItems) {
+          setCart([]);
+          localStorage.removeItem(CART_STORAGE_KEY);
+          localStorage.setItem(CART_SYNCED_FLAG_KEY, "true");
+          return;
         }
-      });
+
+        // Push unsynced guest items up to the server cart on login
+        const pushedItems: CartItem[] = [];
+        for (const guestItem of localItems) {
+          if (!isValidCartItem(guestItem)) continue;
+          try {
+            const created = await apiClient.addToCart(
+              guestItem.product.id,
+              guestItem.quantity,
+              guestItem.selectedSize,
+              guestItem.selectedColor,
+            );
+            pushedItems.push({
+              ...guestItem,
+              id: created?.id ?? guestItem.id,
+            });
+          } catch {
+            pushedItems.push(guestItem);
+          }
+        }
+        setCart(pushedItems);
+        localStorage.setItem(CART_SYNCED_FLAG_KEY, "true");
+        return;
+      }
+
+      // Server has active items: treat server items as source of truth and merge only unsynced guest items
+      const mergedMap = new Map<string, CartItem>();
 
       for (const remote of remoteItems) {
         const prodId = remote.product?.id || remote.productId;
         if (!prodId) continue;
 
-        const localMatch = mergedMap.get(prodId);
+        if (
+          remote.product &&
+          remote.product.name &&
+          Number(remote.product.price) > 0
+        ) {
+          mergedMap.set(prodId, {
+            id: remote.id,
+            product: {
+              ...remote.product,
+              price: Number(remote.product.price),
+            },
+            quantity: Math.max(1, Number(remote.quantity) || 1),
+            selectedSize: remote.selectedSize,
+            selectedColor: remote.selectedColor,
+          });
+        }
+      }
 
-        if (!localMatch) {
-          if (
-            remote.product &&
-            remote.product.name &&
-            Number(remote.product.price) > 0
-          ) {
-            mergedMap.set(prodId, {
-              id: remote.id,
-              product: {
-                ...remote.product,
-                price: Number(remote.product.price),
-              },
-              quantity: Math.max(1, Number(remote.quantity) || 1),
-              selectedSize: remote.selectedSize,
-              selectedColor: remote.selectedColor,
-            });
+      if (!wasPreviouslySynced) {
+        for (const local of localItems) {
+          if (!isValidCartItem(local) || local.id) continue;
+          if (!mergedMap.has(local.product.id)) {
+            try {
+              const created = await apiClient.addToCart(
+                local.product.id,
+                local.quantity,
+                local.selectedSize,
+                local.selectedColor,
+              );
+              mergedMap.set(local.product.id, {
+                ...local,
+                id: created?.id,
+              });
+            } catch {
+              mergedMap.set(local.product.id, local);
+            }
           }
-        } else if (remote.id && !localMatch.id) {
-          mergedMap.set(prodId, { ...localMatch, id: remote.id });
         }
       }
 
       const finalCart = Array.from(mergedMap.values());
-      if (finalCart.length > 0) {
-        setCart(finalCart);
-      }
+      setCart(finalCart);
+      localStorage.setItem(CART_SYNCED_FLAG_KEY, "true");
     } catch (err) {
       console.error("Failed background cart sync:", err);
     } finally {
@@ -184,16 +243,12 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     if (!hasHydrated) return;
 
     try {
-      const validCart = cart.filter(
-        (item) =>
-          item &&
-          item.product &&
-          item.product.id &&
-          item.product.name &&
-          item.product.name !== "Product" &&
-          Number(item.product.price) > 0,
-      );
-      localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(validCart));
+      const validCart = cart.filter(isValidCartItem);
+      if (validCart.length === 0) {
+        localStorage.removeItem(CART_STORAGE_KEY);
+      } else {
+        localStorage.setItem(CART_STORAGE_KEY, JSON.stringify(validCart));
+      }
     } catch (err) {
       console.error("Failed to save cart locally:", err);
     }
@@ -261,9 +316,12 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
             );
           }
         }
+        localStorage.setItem(CART_SYNCED_FLAG_KEY, "true");
       } catch (err) {
         console.error("Failed to sync add item to server cart:", err);
       }
+    } else {
+      localStorage.removeItem(CART_SYNCED_FLAG_KEY);
     }
   };
 
@@ -341,6 +399,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     setCart([]);
     try {
       localStorage.removeItem(CART_STORAGE_KEY);
+      localStorage.setItem(CART_SYNCED_FLAG_KEY, "true");
     } catch (err) {
       console.error("Failed to clear local cart:", err);
     }
@@ -355,15 +414,7 @@ export const CartProvider = ({ children }: { children: React.ReactNode }) => {
     }
   };
 
-  const validCart = cart.filter(
-    (item) =>
-      item &&
-      item.product &&
-      item.product.id &&
-      item.product.name &&
-      item.product.name !== "Product" &&
-      Number(item.product.price) > 0,
-  );
+  const validCart = cart.filter(isValidCartItem);
 
   const subtotal = validCart.reduce((sum, item) => {
     const price = Number(item.product.discountPrice || item.product.price) || 0;
