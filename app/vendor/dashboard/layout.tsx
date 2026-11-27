@@ -21,6 +21,12 @@ import {
 import { toast } from "sonner";
 import { vendorApi, VendorProfile } from "@/lib/api/vendor-api";
 import { authApi, UserProfile } from "@/lib/api/auth-api";
+import StoreLoader from "@/components/vendor/StoreLoader";
+import {
+  cacheStoreName,
+  clearCachedStoreName,
+  useCachedStoreName,
+} from "@/lib/utils/store-cache";
 
 const NAV_ITEMS = [
   { label: "Overview", href: "/vendor/dashboard", icon: LuLayoutDashboard },
@@ -46,6 +52,7 @@ export default function VendorDashboardLayout({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const cachedName = useCachedStoreName();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [vendor, setVendor] = useState<VendorProfile | null>(null);
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -59,6 +66,7 @@ export default function VendorDashboardLayout({
         if (active) {
           setVendor(vendorData);
           setUser(userData);
+          if (vendorData?.storeName) cacheStoreName(vendorData.storeName);
         }
       })
       .catch(() => {
@@ -76,15 +84,18 @@ export default function VendorDashboardLayout({
   const handleLogout = () => {
     authApi.logout();
     toast.success("Logged out successfully");
+    clearCachedStoreName();
     router.push("/login");
     router.refresh();
   };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FAF9F6] flex items-center justify-center text-xs font-bold uppercase tracking-widest text-[#76726E]">
-        Loading Storefront Workspace...
-      </div>
+      <StoreLoader
+        fullScreen
+        storeName={cachedName}
+        message="Loading your workspace..."
+      />
     );
   }
 
@@ -97,10 +108,8 @@ export default function VendorDashboardLayout({
       ? `http://${vendor.slug}.localhost:3000`
       : `https://${vendor.slug}.${rootDomain}`;
 
-  const planLabel =
-    vendor.planName || vendor.subscriptionPlan || "Standard Plan";
-  const rawExpiry =
-    vendor.planExpiresAt || vendor.subscriptionExpiresAt || vendor.expiresAt;
+  const planLabel = vendor.planName || "Standard Plan";
+  const rawExpiry = vendor.planExpiresAt;
   const formattedExpiry = rawExpiry
     ? new Date(rawExpiry).toLocaleDateString("en-US", {
         month: "short",
