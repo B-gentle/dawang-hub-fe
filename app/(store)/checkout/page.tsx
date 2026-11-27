@@ -20,7 +20,7 @@ const TOKEN_COOKIE_NAME =
   process.env.NEXT_PUBLIC_AUTH_TOKEN_COOKIE_NAME || "dawang_token";
 
 export default function CheckoutPage() {
-  const { cart, subtotal, clearCart, isMounted } = useCart();
+  const { cart, subtotal, isMounted } = useCart();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -260,7 +260,6 @@ export default function CheckoutPage() {
       });
 
       if (paymentData?.checkoutUrl) {
-        await clearCart();
         toast.success("Redirecting to secure checkout...");
         window.location.href = paymentData.checkoutUrl;
       } else {
