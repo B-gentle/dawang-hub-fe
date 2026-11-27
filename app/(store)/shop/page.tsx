@@ -6,7 +6,6 @@ import {
   FiFilter,
   FiX,
   FiSearch,
-  FiRefreshCw,
   FiPackage,
   FiSliders,
   FiChevronLeft,
@@ -16,6 +15,11 @@ import { apiClient } from "@/lib/api-client";
 import { Product } from "@/types/product";
 import { Category } from "@/types/category";
 import ProductCard from "@/components/products/ProductCard";
+import { Skeleton } from "@/components/common/Skeleton";
+import {
+  ProductGridSkeleton,
+  ShopPageSkeleton,
+} from "@/components/products/ProductSkeletons";
 
 const API_BASE = (
   process.env.NEXT_PUBLIC_API_URL || "http://localhost:3001/api"
@@ -352,38 +356,51 @@ function ShopContent() {
 
           {/* Mobile Category Scroll */}
           <div className="flex md:hidden overflow-x-auto gap-2 pt-1 pb-1 text-xs no-scrollbar">
-            <button
-              onClick={() => {
-                setSelectedCategory("all");
-                setCurrentPage(1);
-              }}
-              className={`px-3 py-1.5 rounded-full whitespace-nowrap font-bold uppercase tracking-wider transition-colors cursor-pointer text-[10px] shrink-0 ${
-                selectedCategory === "all"
-                  ? "bg-[#151413] text-white"
-                  : "bg-[#FAF9F6] text-[#76726E] border border-[#EAE8E4]"
-              }`}
-            >
-              All
-            </button>
-            {categories.map((cat) => {
-              const isActive = selectedCategory === cat.id;
-              return (
+            {loading && categories.length === 0 ? (
+              Array.from({ length: 5 }).map((_, i) => (
+                <Skeleton
+                  key={i}
+                  variant="circular"
+                  tone="surface"
+                  className="h-6 w-20 shrink-0"
+                />
+              ))
+            ) : (
+              <>
                 <button
-                  key={cat.id}
                   onClick={() => {
-                    setSelectedCategory(cat.id);
+                    setSelectedCategory("all");
                     setCurrentPage(1);
                   }}
                   className={`px-3 py-1.5 rounded-full whitespace-nowrap font-bold uppercase tracking-wider transition-colors cursor-pointer text-[10px] shrink-0 ${
-                    isActive
+                    selectedCategory === "all"
                       ? "bg-[#151413] text-white"
                       : "bg-[#FAF9F6] text-[#76726E] border border-[#EAE8E4]"
                   }`}
                 >
-                  {cat.name}
+                  All
                 </button>
-              );
-            })}
+                {categories.map((cat) => {
+                  const isActive = selectedCategory === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      onClick={() => {
+                        setSelectedCategory(cat.id);
+                        setCurrentPage(1);
+                      }}
+                      className={`px-3 py-1.5 rounded-full whitespace-nowrap font-bold uppercase tracking-wider transition-colors cursor-pointer text-[10px] shrink-0 ${
+                        isActive
+                          ? "bg-[#151413] text-white"
+                          : "bg-[#FAF9F6] text-[#76726E] border border-[#EAE8E4]"
+                      }`}
+                    >
+                      {cat.name}
+                    </button>
+                  );
+                })}
+              </>
+            )}
           </div>
         </div>
 
@@ -394,50 +411,55 @@ function ShopContent() {
               <h3 className="font-bold text-xs uppercase tracking-widest text-[#151413] mb-3 pb-2 border-b border-[#EAE8E4]">
                 Categories
               </h3>
-              <ul className="flex flex-col gap-1.5 text-xs">
-                <li>
-                  <button
-                    onClick={() => {
-                      setSelectedCategory("all");
-                      setCurrentPage(1);
-                    }}
-                    className={`w-full text-left py-1.5 px-2.5 rounded-md transition-colors font-medium cursor-pointer ${
-                      selectedCategory === "all"
-                        ? "bg-[#151413] text-white font-bold"
-                        : "text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6]"
-                    }`}
-                  >
-                    All Categories
-                  </button>
-                </li>
-                {categories.map((cat) => (
-                  <li key={cat.id}>
+              {loading && categories.length === 0 ? (
+                <div className="flex flex-col gap-2">
+                  {Array.from({ length: 6 }).map((_, i) => (
+                    <Skeleton key={i} tone="surface" className="h-7 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <ul className="flex flex-col gap-1.5 text-xs">
+                  <li>
                     <button
                       onClick={() => {
-                        setSelectedCategory(cat.id);
+                        setSelectedCategory("all");
                         setCurrentPage(1);
                       }}
-                      className={`w-full text-left py-1.5 px-2.5 rounded-md transition-colors font-medium cursor-pointer flex justify-between items-center ${
-                        selectedCategory === cat.id
+                      className={`w-full text-left py-1.5 px-2.5 rounded-md transition-colors font-medium cursor-pointer ${
+                        selectedCategory === "all"
                           ? "bg-[#151413] text-white font-bold"
                           : "text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6]"
                       }`}
                     >
-                      <span>{cat.name}</span>
+                      All Categories
                     </button>
                   </li>
-                ))}
-              </ul>
+                  {categories.map((cat) => (
+                    <li key={cat.id}>
+                      <button
+                        onClick={() => {
+                          setSelectedCategory(cat.id);
+                          setCurrentPage(1);
+                        }}
+                        className={`w-full text-left py-1.5 px-2.5 rounded-md transition-colors font-medium cursor-pointer flex justify-between items-center ${
+                          selectedCategory === cat.id
+                            ? "bg-[#151413] text-white font-bold"
+                            : "text-[#76726E] hover:text-[#151413] hover:bg-[#FAF9F6]"
+                        }`}
+                      >
+                        <span>{cat.name}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           </aside>
 
           {/* Main Content Area */}
           <main className="flex-1 min-w-0">
             {loading ? (
-              <div className="py-20 flex flex-col items-center justify-center gap-2 text-xs text-[#76726E]">
-                <FiRefreshCw className="w-5 h-5 animate-spin text-[#C4956A]" />
-                Loading catalog...
-              </div>
+              <ProductGridSkeleton count={8} />
             ) : products.length === 0 ? (
               <div className="py-20 bg-[#FAF9F6] rounded-lg border border-[#EAE8E4] flex flex-col items-center justify-center gap-3 text-center p-6">
                 <FiPackage className="w-8 h-8 text-[#A39E98]" />
@@ -584,14 +606,7 @@ function ShopContent() {
 
 export default function ShopPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="min-h-[60vh] flex flex-col items-center justify-center gap-2 text-xs text-[#76726E]">
-          <FiRefreshCw className="w-6 h-6 animate-spin text-[#C4956A]" />
-          Loading shop catalog...
-        </div>
-      }
-    >
+    <Suspense fallback={<ShopPageSkeleton />}>
       <ShopContent />
     </Suspense>
   );
