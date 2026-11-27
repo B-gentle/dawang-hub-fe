@@ -18,6 +18,8 @@ import {
   FiShield,
   FiLock,
   FiEye,
+  FiCalendar,
+  FiAlertTriangle,
 } from "react-icons/fi";
 import { toast } from "sonner";
 import {
@@ -27,25 +29,121 @@ import {
 } from "@/lib/api/vendor-api";
 import { formatBytes } from "@/lib/utils/format-bytes";
 
-const STATUS_TABS = ["ALL", "APPROVED", "PENDING", "SUSPENDED"] as const;
-type SortOption = "newest" | "storage_desc" | "storage_asc";
+const STATUS_TABS = [
+  "ALL",
+  "APPROVED",
+  "EXPIRED",
+  "PENDING",
+  "SUSPENDED",
+] as const;
+type SortOption = "newest" | "storage_desc" | "storage_asc" | "expiry_asc";
+
+interface VendorWithComputedMeta extends AdminVendorSummary {
+  _subMeta: {
+    hasExpiry: boolean;
+    formattedCreatedDate: string;
+    formattedExpiryDate: string;
+    daysRemaining: number | null;
+    totalSpanDays: number | null;
+    isExpired: boolean;
+    isExpiringSoon: boolean;
+    hasDurationMismatch: boolean;
+  };
+}
+
+function formatShortDate(dateStr?: string | null): string {
+  if (!dateStr) return "N/A";
+  const d = new Date(dateStr);
+  if (Number.isNaN(d.getTime())) return "Invalid date";
+  return d.toLocaleDateString("en-NG", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function enrichVendor(
+  vendor: AdminVendorSummary,
+  nowMs: number,
+): VendorWithComputedMeta {
+  const expiresAt = vendor.planExpiresAt;
+  const createdMs = vendor.createdAt
+    ? new Date(vendor.createdAt).getTime()
+    : NaN;
+  const expiryMs = expiresAt ? new Date(expiresAt).getTime() : NaN;
+
+  const hasExpiry = !Number.isNaN(expiryMs);
+  const daysRemaining =
+    typeof vendor.daysRemaining === "number"
+      ? vendor.daysRemaining
+      : hasExpiry
+        ? Math.ceil((expiryMs - nowMs) / (24 * 60 * 60 * 1000))
+        : null;
+
+  const totalSpanDays =
+    hasExpiry && !Number.isNaN(createdMs)
+      ? Math.round((expiryMs - createdMs) / (24 * 60 * 60 * 1000))
+      : null;
+
+  const planText =
+    `${vendor.planName || ""} ${vendor.planId || ""}`.toLowerCase();
+  const isYearlyPlan = planText.includes("year") || planText.includes("12");
+  const isBiannualPlan =
+    planText.includes("biannual") ||
+    planText.includes("semi") ||
+    planText.includes("6 month");
+  const isQuarterlyPlan =
+    planText.includes("quarter") || planText.includes("3 month");
+
+  const hasDurationMismatch =
+    totalSpanDays !== null &&
+    ((isYearlyPlan && totalSpanDays < 330) ||
+      (isBiannualPlan && totalSpanDays < 160) ||
+      (isQuarterlyPlan && totalSpanDays < 75));
+
+  const isExpired =
+    vendor.status === "EXPIRED" ||
+    Boolean(vendor.isExpired) ||
+    (hasExpiry && expiryMs <= nowMs);
+  const isExpiringSoon =
+    !isExpired && daysRemaining !== null && daysRemaining <= 7;
+
+  return {
+    ...vendor,
+    _subMeta: {
+      hasExpiry,
+      formattedCreatedDate: formatShortDate(vendor.createdAt),
+      formattedExpiryDate: hasExpiry
+        ? formatShortDate(expiresAt)
+        : "No expiry set",
+      daysRemaining,
+      totalSpanDays,
+      isExpired,
+      isExpiringSoon,
+      hasDurationMismatch,
+    },
+  };
+}
 
 function AdminVendorsContent() {
   const searchParams = useSearchParams();
   const initialSortParam = searchParams.get("sort");
   const urlSort: SortOption =
-    initialSortParam === "storage_desc" || initialSortParam === "storage_asc"
+    initialSortParam === "storage_desc" ||
+    initialSortParam === "storage_asc" ||
+    initialSortParam === "expiry_asc"
       ? initialSortParam
       : "newest";
   const initialVendorId = searchParams.get("vendorId");
 
-  const [vendors, setVendors] = useState<AdminVendorSummary[]>([]);
+  const [vendors, setVendors] = useState<VendorWithComputedMeta[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState<string>("ALL");
   const [sortOverride, setSortOverride] = useState<SortOption | null>(null);
-  const [selectedVendor, setSelectedVendor] =
-    useState<AdminVendorSummary | null>(null);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(
+    initialVendorId,
+  );
   const [updatingId, setUpdatingId] = useState<string | null>(null);
 
   // Admin Master-Key KYC Vault State
@@ -57,17 +155,20 @@ function AdminVendorsContent() {
 
   const sortBy: SortOption = sortOverride ?? urlSort;
 
+  const selectedVendor = useMemo(
+    () => vendors.find((v) => v.id === selectedVendorId) ?? null,
+    [vendors, selectedVendorId],
+  );
+
   const loadVendors = async () => {
     try {
       setLoading(true);
       const data = await vendorApi.getAllVendorsAdmin();
-      const list = Array.isArray(data) ? data : [];
+      const nowMs = Date.now();
+      const list = (Array.isArray(data) ? data : []).map((v) =>
+        enrichVendor(v, nowMs),
+      );
       setVendors(list);
-
-      if (initialVendorId) {
-        const match = list.find((v) => v.id === initialVendorId);
-        if (match) setSelectedVendor(match);
-      }
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to load vendors",
@@ -85,11 +186,10 @@ function AdminVendorsContent() {
     return () => {
       active = false;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const openVendorDrawer = (vendor: AdminVendorSummary) => {
-    setSelectedVendor(vendor);
+  const openVendorDrawer = (vendor: VendorWithComputedMeta) => {
+    setSelectedVendorId(vendor.id);
     setRevealedKyc(null);
     setMasterKeyInput("");
     setAuditReasonInput("");
@@ -123,7 +223,7 @@ function AdminVendorsContent() {
   };
 
   const handleStatusChange = async (
-    vendor: AdminVendorSummary,
+    vendor: VendorWithComputedMeta,
     newStatus: "APPROVED" | "SUSPENDED",
   ) => {
     const action = newStatus === "APPROVED" ? "approve" : "suspend";
@@ -137,18 +237,14 @@ function AdminVendorsContent() {
         vendor.id,
         newStatus,
       );
+      const nowMs = Date.now();
       setVendors((prev) =>
         prev.map((v) =>
           v.id === vendor.id
-            ? { ...v, status: updated.status || newStatus }
+            ? enrichVendor({ ...v, status: updated.status || newStatus }, nowMs)
             : v,
         ),
       );
-      if (selectedVendor?.id === vendor.id) {
-        setSelectedVendor((prev) =>
-          prev ? { ...prev, status: updated.status || newStatus } : null,
-        );
-      }
       toast.success(`${vendor.storeName} is now ${newStatus.toLowerCase()}`);
     } catch (err) {
       toast.error(
@@ -161,16 +257,26 @@ function AdminVendorsContent() {
 
   const filteredVendors = useMemo(() => {
     const filtered = vendors.filter((v) => {
-      if (statusFilter !== "ALL" && v.status !== statusFilter) return false;
+      if (statusFilter !== "ALL") {
+        if (statusFilter === "EXPIRED") {
+          if (!v._subMeta.isExpired) return false;
+        } else if (v.status !== statusFilter) {
+          return false;
+        }
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
         const storeMatch = v.storeName?.toLowerCase().includes(q);
         const slugMatch = v.slug?.toLowerCase().includes(q);
+        const planMatch = `${v.planName || ""} ${v.planId || ""}`
+          .toLowerCase()
+          .includes(q);
         const ownerMatch =
           `${v.owner?.firstName || ""} ${v.owner?.lastName || ""} ${v.owner?.email || ""}`
             .toLowerCase()
             .includes(q);
-        if (!storeMatch && !slugMatch && !ownerMatch) return false;
+        if (!storeMatch && !slugMatch && !ownerMatch && !planMatch)
+          return false;
       }
       return true;
     });
@@ -186,6 +292,17 @@ function AdminVendorsContent() {
         (a, b) =>
           Number(a.storageUsedBytes || 0) - Number(b.storageUsedBytes || 0),
       );
+    }
+    if (sortBy === "expiry_asc") {
+      return [...filtered].sort((a, b) => {
+        const aTime = a.planExpiresAt
+          ? new Date(a.planExpiresAt).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        const bTime = b.planExpiresAt
+          ? new Date(b.planExpiresAt).getTime()
+          : Number.MAX_SAFE_INTEGER;
+        return aTime - bTime;
+      });
     }
     return filtered;
   }, [vendors, statusFilter, searchQuery, sortBy]);
@@ -203,6 +320,12 @@ function AdminVendorsContent() {
         return (
           <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-full border border-emerald-200">
             <FiCheckCircle className="w-3 h-3" /> Approved
+          </span>
+        );
+      case "EXPIRED":
+        return (
+          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-orange-800 bg-orange-50 px-2.5 py-1 rounded-full border border-orange-200">
+            <FiAlertTriangle className="w-3 h-3" /> Expired
           </span>
         );
       case "SUSPENDED":
@@ -232,9 +355,9 @@ function AdminVendorsContent() {
             Vendors ({vendors.length})
           </h1>
           <p className="text-sm text-[#76726E] mt-1">
-            Approve or suspend vendor storefronts, inspect KYC & escrow
-            balances, and monitor media storage (
-            {formatBytes(totalVendorStorage)} across all stores).
+            Approve or suspend vendor storefronts, monitor subscription
+            expiries, inspect KYC &amp; escrow balances, and track media storage
+            ({formatBytes(totalVendorStorage)} across all stores).
           </p>
         </div>
 
@@ -253,7 +376,7 @@ function AdminVendorsContent() {
             <FiSearch className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-[#A39E98]" />
             <input
               type="text"
-              placeholder="Search by store name, slug, or owner email..."
+              placeholder="Search by store name, slug, plan, or owner email..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-9 pr-8 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs text-[#151413] focus:outline-hidden focus:border-[#C4956A] placeholder-[#A39E98]"
@@ -282,6 +405,7 @@ function AdminVendorsContent() {
               className="px-3 py-2 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-xs font-semibold text-[#151413] focus:outline-hidden focus:border-[#C4956A] cursor-pointer"
             >
               <option value="newest">Newest First</option>
+              <option value="expiry_asc">Subscription: Expiring Soonest</option>
               <option value="storage_desc">Storage: Highest to Lowest</option>
               <option value="storage_asc">Storage: Lowest to Highest</option>
             </select>
@@ -324,11 +448,12 @@ function AdminVendorsContent() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse min-w-235">
+            <table className="w-full text-left border-collapse min-w-260">
               <thead>
                 <tr className="bg-[#FAF9F6] border-b border-[#EAE8E4] text-[10px] font-bold uppercase tracking-[0.15em] text-[#76726E]">
                   <th className="py-3.5 px-4 font-bold">STOREFRONT</th>
                   <th className="py-3.5 px-4 font-bold">OWNER</th>
+                  <th className="py-3.5 px-4 font-bold">PLAN &amp; EXPIRY</th>
                   <th className="py-3.5 px-4 font-bold">KYC TIER</th>
                   <th className="py-3.5 px-4 font-bold">CATALOG / ORDERS</th>
                   <th className="py-3.5 px-4 font-bold">STORAGE</th>
@@ -338,127 +463,172 @@ function AdminVendorsContent() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#FAF9F6] text-xs">
-                {filteredVendors.map((vendor) => (
-                  <tr
-                    key={vendor.id}
-                    className="hover:bg-[#FAF9F6]/50 transition-colors"
-                  >
-                    <td className="py-4 px-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-[#151413]">
-                          {vendor.storeName}
-                        </span>
-                        <a
-                          href={`https://${vendor.slug}.${rootDomain}`}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-[10px] font-mono text-[#C4956A] hover:underline inline-flex items-center gap-1 mt-0.5"
-                        >
-                          {vendor.slug}.{rootDomain}{" "}
-                          <FiExternalLink className="w-2.5 h-2.5" />
-                        </a>
-                      </div>
-                    </td>
+                {filteredVendors.map((vendor) => {
+                  const sub = vendor._subMeta;
+                  const displayPlan =
+                    vendor.planName || vendor.planId || "Standard";
 
-                    <td className="py-4 px-4">
-                      <div className="flex flex-col">
-                        <span className="font-medium text-[#151413]">
-                          {vendor.owner?.firstName} {vendor.owner?.lastName}
-                        </span>
-                        <span className="text-[10px] text-[#76726E]">
-                          {vendor.owner?.email}
-                        </span>
-                      </div>
-                    </td>
+                  return (
+                    <tr
+                      key={vendor.id}
+                      className="hover:bg-[#FAF9F6]/50 transition-colors"
+                    >
+                      <td className="py-4 px-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-[#151413]">
+                            {vendor.storeName}
+                          </span>
+                          <a
+                            href={`https://${vendor.slug}.${rootDomain}`}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="text-[10px] font-mono text-[#C4956A] hover:underline inline-flex items-center gap-1 mt-0.5"
+                          >
+                            {vendor.slug}.{rootDomain}{" "}
+                            <FiExternalLink className="w-2.5 h-2.5" />
+                          </a>
+                          <span className="text-[10px] text-[#A39E98] mt-0.5">
+                            Joined {sub.formattedCreatedDate}
+                          </span>
+                        </div>
+                      </td>
 
-                    <td className="py-4 px-4">
-                      <div className="flex flex-wrap gap-1">
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            vendor.bvnVerified
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-stone-100 text-[#76726E]"
-                          }`}
-                        >
-                          BVN{" "}
-                          {vendor.bvnVerified ? `••••${vendor.bvnLast4}` : "—"}
+                      <td className="py-4 px-4">
+                        <div className="flex flex-col">
+                          <span className="font-medium text-[#151413]">
+                            {vendor.owner?.firstName} {vendor.owner?.lastName}
+                          </span>
+                          <span className="text-[10px] text-[#76726E]">
+                            {vendor.owner?.email}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-4">
+                        <div className="flex flex-col gap-1">
+                          <span className="font-semibold text-[#151413] capitalize">
+                            {displayPlan}
+                          </span>
+                          <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-[10px] text-[#76726E]">
+                              {sub.formattedExpiryDate}
+                            </span>
+                            {sub.hasExpiry && sub.daysRemaining !== null && (
+                              <span
+                                className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                  sub.isExpired
+                                    ? "bg-rose-50 text-rose-700 border border-rose-200"
+                                    : sub.isExpiringSoon
+                                      ? "bg-amber-50 text-amber-800 border border-amber-200"
+                                      : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                }`}
+                              >
+                                {sub.isExpired
+                                  ? sub.daysRemaining < 0
+                                    ? `Expired ${Math.abs(sub.daysRemaining)}d ago`
+                                    : "Expired today"
+                                  : `${sub.daysRemaining}d left`}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-4">
+                        <div className="flex flex-wrap gap-1">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              vendor.bvnVerified
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-stone-100 text-[#76726E]"
+                            }`}
+                          >
+                            BVN{" "}
+                            {vendor.bvnVerified
+                              ? `••••${vendor.bvnLast4}`
+                              : "—"}
+                          </span>
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              vendor.ninVerified
+                                ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                                : "bg-stone-100 text-[#76726E]"
+                            }`}
+                          >
+                            NIN{" "}
+                            {vendor.ninVerified
+                              ? `••••${vendor.ninLast4}`
+                              : "—"}
+                          </span>
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-4 text-[#76726E]">
+                        <div className="flex items-center gap-3">
+                          <Link
+                            href={`/admin/products?vendorId=${vendor.id}`}
+                            className="inline-flex items-center gap-1 hover:text-[#151413] font-semibold"
+                          >
+                            <FiPackage className="w-3.5 h-3.5 text-[#C4956A]" />
+                            {vendor.productCount ?? 0}
+                          </Link>
+                          <Link
+                            href={`/admin/orders?vendorId=${vendor.id}`}
+                            className="inline-flex items-center gap-1 hover:text-[#151413] font-semibold"
+                          >
+                            <FiShoppingBag className="w-3.5 h-3.5 text-[#C4956A]" />
+                            {vendor.orderCount ?? 0}
+                          </Link>
+                        </div>
+                      </td>
+
+                      <td className="py-4 px-4">
+                        <span className="inline-flex items-center gap-1.5 font-mono font-semibold text-[#151413] bg-[#FAF9F6] border border-[#EAE8E4] px-2.5 py-1 rounded-md text-[11px]">
+                          <FiHardDrive className="w-3 h-3 text-[#C4956A]" />
+                          {formatBytes(vendor.storageUsedBytes)}
                         </span>
-                        <span
-                          className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                            vendor.ninVerified
-                              ? "bg-emerald-50 text-emerald-700 border border-emerald-200"
-                              : "bg-stone-100 text-[#76726E]"
-                          }`}
-                        >
-                          NIN{" "}
-                          {vendor.ninVerified ? `••••${vendor.ninLast4}` : "—"}
-                        </span>
-                      </div>
-                    </td>
+                      </td>
 
-                    <td className="py-4 px-4 text-[#76726E]">
-                      <div className="flex items-center gap-3">
-                        <Link
-                          href={`/admin/products?vendorId=${vendor.id}`}
-                          className="inline-flex items-center gap-1 hover:text-[#151413] font-semibold"
-                        >
-                          <FiPackage className="w-3.5 h-3.5 text-[#C4956A]" />
-                          {vendor.productCount ?? 0}
-                        </Link>
-                        <Link
-                          href={`/admin/orders?vendorId=${vendor.id}`}
-                          className="inline-flex items-center gap-1 hover:text-[#151413] font-semibold"
-                        >
-                          <FiShoppingBag className="w-3.5 h-3.5 text-[#C4956A]" />
-                          {vendor.orderCount ?? 0}
-                        </Link>
-                      </div>
-                    </td>
+                      <td className="py-4 px-4">
+                        <div className="flex flex-col">
+                          <span className="font-bold text-emerald-700">
+                            ₦
+                            {Number(
+                              vendor.withdrawableBalance || 0,
+                            ).toLocaleString()}
+                          </span>
+                          <span className="text-[10px] text-[#76726E]">
+                            Escrow: ₦
+                            {Number(
+                              vendor.pendingBalance || 0,
+                            ).toLocaleString()}
+                          </span>
+                        </div>
+                      </td>
 
-                    <td className="py-4 px-4">
-                      <span className="inline-flex items-center gap-1.5 font-mono font-semibold text-[#151413] bg-[#FAF9F6] border border-[#EAE8E4] px-2.5 py-1 rounded-md text-[11px]">
-                        <FiHardDrive className="w-3 h-3 text-[#C4956A]" />
-                        {formatBytes(vendor.storageUsedBytes)}
-                      </span>
-                    </td>
+                      <td className="py-4 px-4">
+                        {getStatusBadge(vendor.status)}
+                      </td>
 
-                    <td className="py-4 px-4">
-                      <div className="flex flex-col">
-                        <span className="font-bold text-emerald-700">
-                          ₦
-                          {Number(
-                            vendor.withdrawableBalance || 0,
-                          ).toLocaleString()}
-                        </span>
-                        <span className="text-[10px] text-[#76726E]">
-                          Escrow: ₦
-                          {Number(vendor.pendingBalance || 0).toLocaleString()}
-                        </span>
-                      </div>
-                    </td>
-
-                    <td className="py-4 px-4">
-                      {getStatusBadge(vendor.status)}
-                    </td>
-
-                    <td className="py-4 px-4 text-right">
-                      <div className="inline-flex items-center gap-2">
-                        <Link
-                          href={`/admin/vendors/${vendor.id}/transactions`}
-                          className="px-3 py-1.5 bg-white border border-[#EAE8E4] rounded-md text-[11px] font-bold uppercase tracking-wider text-[#76726E] hover:border-[#C4956A] hover:text-[#151413] transition-colors"
-                        >
-                          Ledger
-                        </Link>
-                        <button
-                          onClick={() => openVendorDrawer(vendor)}
-                          className="px-3 py-1.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[11px] font-bold uppercase tracking-wider text-[#151413] hover:bg-[#151413] hover:text-white transition-colors cursor-pointer"
-                        >
-                          Inspect
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                      <td className="py-4 px-4 text-right">
+                        <div className="inline-flex items-center gap-2">
+                          <Link
+                            href={`/admin/vendors/${vendor.id}/transactions`}
+                            className="px-3 py-1.5 bg-white border border-[#EAE8E4] rounded-md text-[11px] font-bold uppercase tracking-wider text-[#76726E] hover:border-[#C4956A] hover:text-[#151413] transition-colors"
+                          >
+                            Ledger
+                          </Link>
+                          <button
+                            onClick={() => openVendorDrawer(vendor)}
+                            className="px-3 py-1.5 bg-[#FAF9F6] border border-[#EAE8E4] rounded-md text-[11px] font-bold uppercase tracking-wider text-[#151413] hover:bg-[#151413] hover:text-white transition-colors cursor-pointer"
+                          >
+                            Inspect
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -469,7 +639,7 @@ function AdminVendorsContent() {
       {selectedVendor && (
         <div className="fixed inset-0 z-50 flex justify-end">
           <div
-            onClick={() => setSelectedVendor(null)}
+            onClick={() => setSelectedVendorId(null)}
             className="fixed inset-0 bg-black/50 backdrop-blur-xs"
           />
           <div className="relative w-full max-w-md h-full bg-white shadow-2xl p-6 flex flex-col justify-between z-10 overflow-y-auto">
@@ -484,7 +654,7 @@ function AdminVendorsContent() {
                   </h3>
                 </div>
                 <button
-                  onClick={() => setSelectedVendor(null)}
+                  onClick={() => setSelectedVendorId(null)}
                   className="p-1 text-[#76726E] hover:text-[#151413] cursor-pointer"
                 >
                   <FiX className="w-5 h-5" />
@@ -496,6 +666,75 @@ function AdminVendorsContent() {
                   Current Status
                 </span>
                 {getStatusBadge(selectedVendor.status)}
+              </div>
+
+              {/* Subscription & Plan Expiry */}
+              <div className="bg-[#FAF9F6] p-3.5 rounded-md border border-[#EAE8E4] flex flex-col gap-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-[#76726E] flex items-center gap-1.5">
+                    <FiCalendar className="w-3.5 h-3.5 text-[#C4956A]" />
+                    Subscription Plan
+                  </span>
+                  <span className="font-bold text-[#151413] capitalize">
+                    {selectedVendor.planName ||
+                      selectedVendor.planId ||
+                      "Standard Plan"}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between pt-1.5 border-t border-[#EAE8E4] text-[11px] text-[#76726E]">
+                  <span>
+                    Store Created:{" "}
+                    <strong className="text-[#151413]">
+                      {selectedVendor._subMeta.formattedCreatedDate}
+                    </strong>
+                  </span>
+                  {selectedVendor._subMeta.totalSpanDays !== null && (
+                    <span>
+                      Term:{" "}
+                      <strong className="text-[#151413]">
+                        {selectedVendor._subMeta.totalSpanDays}d
+                      </strong>
+                    </span>
+                  )}
+                </div>
+
+                <div className="flex items-center justify-between pt-1.5 border-t border-[#EAE8E4]">
+                  <span className="text-[11px] text-[#76726E]">
+                    Expires:{" "}
+                    <strong className="text-[#151413]">
+                      {selectedVendor._subMeta.formattedExpiryDate}
+                    </strong>
+                  </span>
+                  {selectedVendor._subMeta.hasExpiry &&
+                    selectedVendor._subMeta.daysRemaining !== null && (
+                      <span
+                        className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase ${
+                          selectedVendor._subMeta.isExpired
+                            ? "bg-rose-50 text-rose-700 border border-rose-200"
+                            : selectedVendor._subMeta.isExpiringSoon
+                              ? "bg-amber-50 text-amber-800 border border-amber-200"
+                              : "bg-emerald-50 text-emerald-700 border border-emerald-200"
+                        }`}
+                      >
+                        {selectedVendor._subMeta.isExpired
+                          ? selectedVendor._subMeta.daysRemaining < 0
+                            ? `Expired ${Math.abs(selectedVendor._subMeta.daysRemaining)}d ago`
+                            : "Expired today"
+                          : `${selectedVendor._subMeta.daysRemaining}d remaining`}
+                      </span>
+                    )}
+                </div>
+
+                {selectedVendor._subMeta.hasDurationMismatch && (
+                  <div className="mt-1 p-2 rounded bg-amber-50 border border-amber-200 text-[10px] text-amber-900 flex items-start gap-1.5">
+                    <FiAlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0 mt-0.5" />
+                    <span>
+                      Expiry span ({selectedVendor._subMeta.totalSpanDays} days
+                      from creation) is shorter than the selected plan duration.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Media Storage Usage */}

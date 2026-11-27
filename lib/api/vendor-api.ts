@@ -1,6 +1,6 @@
 import { API_BASE_URL, fetcher, getAuthToken } from "./fetcher";
 
-export type VendorStatus = "PENDING" | "APPROVED" | "SUSPENDED";
+export type VendorStatus = "PENDING" | "APPROVED" | "SUSPENDED" | "EXPIRED";
 
 export interface StateShippingRate {
   state: string;
@@ -65,11 +65,10 @@ export interface VendorProfile {
   bannerUrl?: string;
   whatsappNumber?: string;
   planId?: string;
-  planName?: string;
-  subscriptionPlan?: string;
-  planExpiresAt?: string;
-  subscriptionExpiresAt?: string;
-  expiresAt?: string;
+  planName?: string | null;
+  planExpiresAt?: string | null;
+  isExpired?: boolean;
+  daysRemaining?: number | null;
   pendingBalance?: number;
   withdrawableBalance?: number;
   totalWithdrawn?: number;
@@ -305,7 +304,7 @@ export interface PlatformTransactionsResponse {
 }
 
 export interface AdminVendorSummary extends VendorProfile {
-  status: "PENDING" | "APPROVED" | "SUSPENDED";
+  status: VendorStatus;
   pendingBalance?: number;
   withdrawableBalance?: number;
   totalWithdrawn?: number;
@@ -484,7 +483,7 @@ export const vendorApi = {
 
   updateVendorStatusAdmin: (
     vendorId: string,
-    status: "PENDING" | "APPROVED" | "SUSPENDED",
+    status: VendorStatus,
   ): Promise<AdminVendorSummary> =>
     fetcher<AdminVendorSummary>(`/vendors/${vendorId}/status`, {
       method: "PATCH",
